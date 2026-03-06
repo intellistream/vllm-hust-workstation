@@ -1,0 +1,19 @@
+[sagellm]
+base_url = http://localhost:8093
+api_key = not-required
+default_model = YourModelName
+backend_type = NVIDIA A100 80GB PCIe
+model_path = /path/to/your/model
+
+[hub]
+models_dir = ~/Downloads/sagellm-models
+hf_endpoint = https://hf-mirror.com
+hf_token =
+
+[server]
+port = 3000
+
+[brand]
+name = SageLLM 私有工作站
+accent_color = #6366f1
+logo =
