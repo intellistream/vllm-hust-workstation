@@ -455,6 +455,8 @@ async function loadBackends() {
     list.forEach(b => {
       const opt = document.createElement('option');
       opt.value = b.id;
+      opt.dataset.label = b.label;
+      opt.dataset.tag   = b.tag;
       opt.textContent = `${b.label}  [${b.tag}]`;
       if (b.active) opt.selected = true;
       if (!b.available) opt.disabled = true;
@@ -465,8 +467,30 @@ async function loadBackends() {
       const el = document.getElementById('footer-backend-info');
       if (el) el.textContent = active.label + '  [' + active.tag + ']';
     }
+    // Wire change event — persists choice and updates footer
+    sel.onchange = () => {
+      const opt = sel.options[sel.selectedIndex];
+      if (opt) switchBackend(sel.value, opt.dataset.label, opt.dataset.tag);
+    };
   } catch(e) {
     console.warn('loadBackends failed', e);
+  }
+}
+
+async function switchBackend(id, label, tag) {
+  try {
+    const res = await fetch('/api/backend', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({id}),
+    });
+    const d = await res.json();
+    if (!d.ok) { showToast('切换失败: ' + (d.error || '未知错误'), 'red'); return; }
+    const el = document.getElementById('footer-backend-info');
+    if (el) el.textContent = label + '  [' + tag + ']';
+    showToast('✓ 已选择 ' + label + '，重启引擎后生效');
+  } catch(e) {
+    showToast('切换失败: ' + e.message, 'red');
   }
 }
 

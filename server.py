@@ -267,6 +267,38 @@ async def backends():
     return await loop.run_in_executor(None, _detect_backends)
 
 
+_BACKEND_ID_TO_TYPE: dict[str, str] = {
+    "nvidia-cuda": "NVIDIA CUDA",
+    "ascend-npu":  "Ascend NPU",
+    "amd-rocm":    "AMD ROCm",
+    "cpu":         "CPU",
+}
+
+
+@app.put("/api/backend")
+async def switch_backend(request: Request):
+    """Persist the selected backend to config.ini so the next engine restart picks it up."""
+    global BACKEND_TYPE
+    body = await request.json()
+    backend_id = body.get("id", "")
+    label = _BACKEND_ID_TO_TYPE.get(backend_id)
+    if not label:
+        return JSONResponse({"ok": False, "error": f"unknown backend id: {backend_id}"}, status_code=400)
+
+    BACKEND_TYPE = label
+    # Persist to config.ini
+    if not config.has_section("sagellm"):
+        config.add_section("sagellm")
+    config.set("sagellm", "backend_type", label)
+    try:
+        with open(config_path, "w", encoding="utf-8") as fh:
+            config.write(fh)
+    except Exception as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=500)
+
+    return {"ok": True, "backend_type": label}
+
+
 def _get_gpu_stats() -> dict[str, float]:
     """Query nvidia-smi and aggregate across all GPUs."""
     try:
