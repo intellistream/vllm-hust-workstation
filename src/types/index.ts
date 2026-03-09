@@ -7,6 +7,38 @@ export interface Message {
   latencyMs?: number;
 }
 
+export interface SearchResult {
+  title: string;
+  url: string;
+  snippet: string;
+}
+
+export interface ModelHubDownloadState {
+  status: "idle" | "downloading" | "done" | "error" | "cancelled";
+  pct: number;
+  speedMbps?: number;
+  downloadedBytes?: number;
+  totalBytes?: number;
+  currentFile?: string;
+  error?: string;
+}
+
+export interface ModelHubModel {
+  id: string;
+  name: string;
+  repoId: string;
+  params: string;
+  sizeGb: number;
+  vramGb: number;
+  description: string;
+  tags: string[];
+  color: string;
+  requiresAuth?: boolean;
+  installed?: boolean;
+  active?: boolean;
+  download?: ModelHubDownloadState;
+}
+
 export interface MetricsSnapshot {
   tokensPerSecond: number;
   pendingRequests: number;
@@ -18,6 +50,7 @@ export interface MetricsSnapshot {
   avgLatencyMs: number;
   modelName: string;
   backendType: string;
+  gatewayAvailable?: boolean;
 }
 
 export interface AppConfig {
@@ -26,4 +59,5 @@ export interface AppConfig {
   accentColor: string;
   baseUrl: string;
   defaultModel: string;
+  searchEnabled: boolean;
 }

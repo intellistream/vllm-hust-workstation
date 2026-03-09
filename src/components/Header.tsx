@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck, Cpu, ChevronDown } from "lucide-react";
+import { ShieldCheck, Cpu, ChevronDown, PackageOpen } from "lucide-react";
 
 interface HeaderProps {
   brandName: string;
@@ -9,6 +9,7 @@ interface HeaderProps {
   model: string;
   models: string[];
   onModelChange: (m: string) => void;
+  onOpenModelHub: () => void;
   online: boolean;
 }
 
@@ -19,6 +20,7 @@ export default function Header({
   model,
   models,
   onModelChange,
+  onOpenModelHub,
   online,
 }: HeaderProps) {
   return (
@@ -69,19 +71,29 @@ export default function Header({
       </div>
 
       {/* Model selector */}
-      <div className="relative">
-        <select
-          value={model}
-          onChange={(e) => onModelChange(e.target.value)}
-          className="appearance-none bg-white/5 border border-white/10 text-white text-sm px-4 py-2 pr-8 rounded-lg cursor-pointer focus:outline-none focus:border-white/30 hover:bg-white/10 transition-colors"
+      <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onOpenModelHub}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-white/10 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white transition-colors text-sm"
         >
-          {models.map((m) => (
-            <option key={m} value={m} className="bg-slate-800">
-              {m}
-            </option>
-          ))}
-        </select>
-        <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/50 pointer-events-none" />
+          <PackageOpen size={14} />
+          模型库
+        </button>
+        <div className="relative">
+          <select
+            value={model}
+            onChange={(e) => onModelChange(e.target.value)}
+            className="appearance-none bg-white/5 border border-white/10 text-white text-sm px-4 py-2 pr-8 rounded-lg cursor-pointer focus:outline-none focus:border-white/30 hover:bg-white/10 transition-colors max-w-[220px]"
+          >
+            {models.map((m) => (
+              <option key={m} value={m} className="bg-slate-800">
+                {m}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/50 pointer-events-none" />
+        </div>
       </div>
     </header>
   );

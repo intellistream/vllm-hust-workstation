@@ -14,6 +14,10 @@ interface MetricsDashboardProps {
   snapshot: MetricsSnapshot | null;
   history: { time: number; tps: number; latency: number; gpu: number }[];
   accentColor: string;
+  model: string;
+  models: string[];
+  online: boolean;
+  onModelChange: (model: string) => void;
 }
 
 function StatCard({
@@ -139,6 +143,10 @@ export default function MetricsDashboard({
   snapshot,
   history,
   accentColor,
+  model,
+  models,
+  online,
+  onModelChange,
 }: MetricsDashboardProps) {
   const s = snapshot;
 
@@ -151,6 +159,31 @@ export default function MetricsDashboard({
       </div>
 
       <div className="px-4 pb-4 flex flex-col gap-3">
+        <div className="bg-white/5 rounded-xl p-4 border border-white/8 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-white/55 text-xs font-medium uppercase tracking-wider">
+              模型选择
+            </span>
+            <span className={online ? "text-emerald-300 text-xs" : "text-red-300 text-xs"}>
+              {online ? "在线可切换" : "离线兜底"}
+            </span>
+          </div>
+          <select
+            value={model}
+            onChange={(e) => onModelChange(e.target.value)}
+            className="w-full appearance-none bg-slate-950/60 border border-white/10 text-white text-sm px-3 py-2 rounded-lg cursor-pointer focus:outline-none focus:border-white/30"
+          >
+            {models.map((item) => (
+              <option key={item} value={item} className="bg-slate-900">
+                {item}
+              </option>
+            ))}
+          </select>
+          <p className="text-white/30 text-xs leading-5">
+            右侧保留模型切换入口，避免重构后只能在页头操作。
+          </p>
+        </div>
+
         {/* TPS + Latency */}
         <StatCard
           icon={<Zap size={14} />}

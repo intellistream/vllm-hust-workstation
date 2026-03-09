@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Copy,
   CheckCheck,
+  Globe,
 } from "lucide-react";
 import type { Message } from "@/types";
 import clsx from "clsx";
@@ -18,9 +19,12 @@ interface ChatPanelProps {
   messages: Message[];
   loading: boolean;
   accentColor: string;
+  webSearch: boolean;
+  searchEnabled: boolean;
   onSend: (text: string) => void;
   onStop: () => void;
   onClear: () => void;
+  onToggleWebSearch: () => void;
 }
 
 function CopyButton({ text }: { text: string }) {
@@ -129,9 +133,12 @@ export default function ChatPanel({
   messages,
   loading,
   accentColor,
+  webSearch,
+  searchEnabled,
   onSend,
   onStop,
   onClear,
+  onToggleWebSearch,
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -238,6 +245,21 @@ export default function ChatPanel({
             style={{ minHeight: "24px", maxHeight: "180px" }}
           />
           <div className="flex items-center gap-2 flex-shrink-0 mb-0.5">
+            {searchEnabled && (
+              <button
+                type="button"
+                onClick={onToggleWebSearch}
+                className={clsx(
+                  "w-8 h-8 rounded-xl flex items-center justify-center transition-colors border",
+                  webSearch
+                    ? "text-sky-200 border-sky-400/35 bg-sky-400/15"
+                    : "text-white/30 border-white/10 hover:text-white/60 hover:border-white/20"
+                )}
+                title={webSearch ? "联网搜索：已开启" : "联网搜索：已关闭"}
+              >
+                <Globe size={14} />
+              </button>
+            )}
             {messages.length > 0 && (
               <button
                 onClick={onClear}
@@ -265,9 +287,10 @@ export default function ChatPanel({
             </button>
           </div>
         </div>
-        <p className="text-center text-white/15 text-xs mt-2">
-          本地私有推理 · 端到端加密 · 零数据上报
-        </p>
+        <div className="flex items-center justify-center gap-3 mt-2 text-xs">
+          <p className="text-white/15">本地私有推理 · 端到端加密 · 零数据上报</p>
+          {searchEnabled && webSearch && <span className="text-sky-300/80">🌐 联网搜索已开启</span>}
+        </div>
       </div>
     </div>
   );
