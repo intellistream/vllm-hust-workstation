@@ -1,8 +1,13 @@
 # Changelog
 
-All notable changes to sagellm-workstation will be documented in this file.
+All notable changes to vllm-hust-workstation will be documented in this file.
 
 ## [Unreleased]
+
+### Changed
+
+- **vllm-hust first bootstrap** — `quickstart.sh` 现在优先使用 `vllm-hust serve` / `python -m vllm_hust.cli serve` 拉起本地完整栈，并保留对 `sagellm` 的回退兼容；默认日志文件改为 `.logs/vllm-hust-serve.log`。
+- **Naming migration defaults** — 文档、示例配置与默认模型目录已切换到 `vllm-hust` 命名（如 `~/Downloads/vllm-hust-models`），并补充了 vllm-hust PyPI 发布命令示例。
 
 ### Fixed
 - Workstation `/config.json` now returns `modelsDir` and `hfEndpoint`, so the frontend model hub shows the configured download directory and mirror endpoint instead of falling back to hardcoded defaults.

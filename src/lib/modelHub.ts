@@ -73,7 +73,7 @@ export const MODEL_CATALOG: ModelHubModel[] = [
 ];
 
 export function getModelHubDir(): string {
-  return process.env.MODEL_HUB_DIR || path.join(os.homedir(), "Downloads", "sagellm-models");
+  return process.env.MODEL_HUB_DIR || path.join(os.homedir(), "Downloads", "vllm-hust-models");
 }
 
 export function idleDownloadState(): ModelHubDownloadState {

@@ -10,11 +10,11 @@ services:
       DEFAULT_MODEL: ${DEFAULT_MODEL:-default}
       BACKEND_TYPE: ${BACKEND_TYPE:-Ascend NPU}
       # White-label branding
-      APP_BRAND_NAME: ${APP_BRAND_NAME:-SageLLM 工作站}
+      APP_BRAND_NAME: ${APP_BRAND_NAME:-vLLM-HUST 工作站}
       APP_BRAND_LOGO: ${APP_BRAND_LOGO:-}
       APP_ACCENT_COLOR: ${APP_ACCENT_COLOR:-#6366f1}
       # Replicate to NEXT_PUBLIC_* for client-side
-      NEXT_PUBLIC_BRAND_NAME: ${APP_BRAND_NAME:-SageLLM 工作站}
+      NEXT_PUBLIC_BRAND_NAME: ${APP_BRAND_NAME:-vLLM-HUST 工作站}
       NEXT_PUBLIC_BRAND_LOGO: ${APP_BRAND_LOGO:-}
       NEXT_PUBLIC_ACCENT_COLOR: ${APP_ACCENT_COLOR:-#6366f1}
     restart: unless-stopped

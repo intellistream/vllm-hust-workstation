@@ -224,6 +224,15 @@ build_workspace_pythonpath() {
   local pythonpath=""
   parent_dir="$(cd "$SCRIPT_DIR/.." && pwd)"
   for repo in \
+    vllm-hust \
+    vllm-hust-protocol \
+    vllm-hust-backend \
+    vllm-hust-core \
+    vllm-hust-control-plane \
+    vllm-hust-gateway \
+    vllm-hust-kv-cache \
+    vllm-hust-comm \
+    vllm-hust-compression \
     sagellm \
     sagellm-protocol \
     sagellm-backend \
@@ -393,9 +402,9 @@ stop_local_processes_on_port() {
 find_sagellm_serve_pids() {
   local port="$1"
   local engine_port="$2"
-  pgrep -af 'sagellm serve|sagellm\.cli serve' 2>/dev/null \
+  pgrep -af 'vllm-hust serve|sagellm serve|vllm_hust\.cli serve|sagellm\.cli serve' 2>/dev/null \
     | awk -v port="$port" -v engine_port="$engine_port" '
-        $0 ~ /sagellm(\.cli)? serve/ && $0 ~ ("--port " port) && $0 ~ ("--engine-port " engine_port) {
+        $0 ~ /(vllm-hust|sagellm|vllm_hust\.cli|sagellm\.cli) serve/ && $0 ~ ("--port " port) && $0 ~ ("--engine-port " engine_port) {
           print $1
         }
       ' \
@@ -412,7 +421,7 @@ stop_local_sagellm_serve_processes() {
     return 0
   fi
 
-  echo -e "${YELLOW}♻️ 检测到残留 sagellm serve 进程，正在清理…${NC}"
+  echo -e "${YELLOW}♻️ 检测到残留 vllm-hust/sagellm serve 进程，正在清理…${NC}"
   printf '%s\n' "$pids" | xargs -r kill
   sleep 2
   pids="$(find_sagellm_serve_pids "$port" "$engine_port")"
@@ -614,7 +623,7 @@ start_full_stack_if_needed() {
   port="$(gateway_port)"
   engine_port="${WORKSTATION_ENGINE_PORT:-$((port + 1))}"
   log_dir="$SCRIPT_DIR/.logs"
-  log_file="$log_dir/sagellm-serve.log"
+  log_file="$log_dir/vllm-hust-serve.log"
   model="$(bootstrap_model)"
   backend="$(bootstrap_backend)"
 
@@ -627,13 +636,13 @@ start_full_stack_if_needed() {
       fi
       echo -e "${YELLOW}♻️ 当前本地服务模型为 ${running_model}，将切换为你选择的 ${model}${NC}"
     else
-      echo -e "${GREEN}✅ 已检测到可推理的 sagellm 服务：$(gateway_probe_url)${NC}"
+      echo -e "${GREEN}✅ 已检测到可推理的 vllm-hust 服务：$(gateway_probe_url)${NC}"
       return 0
     fi
   fi
 
   if [[ "$auto_start" != "true" ]]; then
-    echo -e "${YELLOW}✗ 未检测到可推理的 sagellm 服务，且 WORKSTATION_AUTO_START_GATEWAY=false${NC}"
+    echo -e "${YELLOW}✗ 未检测到可推理的 vllm-hust 服务，且 WORKSTATION_AUTO_START_GATEWAY=false${NC}"
     exit 1
   fi
 
@@ -658,7 +667,13 @@ start_full_stack_if_needed() {
   stop_local_processes_on_port "$port"
   stop_local_processes_on_port "$engine_port"
 
-  if command -v sagellm &>/dev/null; then
+  if command -v vllm-hust &>/dev/null; then
+    nohup env \
+      SAGELLM_PREFLIGHT_CANARY=0 \
+      SAGELLM_STARTUP_CANARY=0 \
+      SAGELLM_PERIODIC_CANARY=0 \
+      vllm-hust serve --backend "$backend" --model "$model" --host 0.0.0.0 --port "$port" --engine-port "$engine_port" >"$log_file" 2>&1 &
+  elif command -v sagellm &>/dev/null; then
     nohup env \
       SAGELLM_PREFLIGHT_CANARY=0 \
       SAGELLM_STARTUP_CANARY=0 \
@@ -667,21 +682,39 @@ start_full_stack_if_needed() {
   else
     pythonpath="$(build_workspace_pythonpath)"
     if command -v python3 &>/dev/null && [[ -n "$pythonpath" ]]; then
-      nohup env \
-        PYTHONPATH="$pythonpath" \
-        SAGELLM_PREFLIGHT_CANARY=0 \
-        SAGELLM_STARTUP_CANARY=0 \
-        SAGELLM_PERIODIC_CANARY=0 \
-        python3 -m sagellm.cli serve --backend "$backend" --model "$model" --host 0.0.0.0 --port "$port" --engine-port "$engine_port" >"$log_file" 2>&1 &
+      if PYTHONPATH="$pythonpath" python3 -c 'import vllm_hust.cli' >/dev/null 2>&1; then
+        nohup env \
+          PYTHONPATH="$pythonpath" \
+          SAGELLM_PREFLIGHT_CANARY=0 \
+          SAGELLM_STARTUP_CANARY=0 \
+          SAGELLM_PERIODIC_CANARY=0 \
+          python3 -m vllm_hust.cli serve --backend "$backend" --model "$model" --host 0.0.0.0 --port "$port" --engine-port "$engine_port" >"$log_file" 2>&1 &
+      else
+        nohup env \
+          PYTHONPATH="$pythonpath" \
+          SAGELLM_PREFLIGHT_CANARY=0 \
+          SAGELLM_STARTUP_CANARY=0 \
+          SAGELLM_PERIODIC_CANARY=0 \
+          python3 -m sagellm.cli serve --backend "$backend" --model "$model" --host 0.0.0.0 --port "$port" --engine-port "$engine_port" >"$log_file" 2>&1 &
+      fi
     elif command -v python &>/dev/null && [[ -n "$pythonpath" ]]; then
-      nohup env \
-        PYTHONPATH="$pythonpath" \
-        SAGELLM_PREFLIGHT_CANARY=0 \
-        SAGELLM_STARTUP_CANARY=0 \
-        SAGELLM_PERIODIC_CANARY=0 \
-        python -m sagellm.cli serve --backend "$backend" --model "$model" --host 0.0.0.0 --port "$port" --engine-port "$engine_port" >"$log_file" 2>&1 &
+      if PYTHONPATH="$pythonpath" python -c 'import vllm_hust.cli' >/dev/null 2>&1; then
+        nohup env \
+          PYTHONPATH="$pythonpath" \
+          SAGELLM_PREFLIGHT_CANARY=0 \
+          SAGELLM_STARTUP_CANARY=0 \
+          SAGELLM_PERIODIC_CANARY=0 \
+          python -m vllm_hust.cli serve --backend "$backend" --model "$model" --host 0.0.0.0 --port "$port" --engine-port "$engine_port" >"$log_file" 2>&1 &
+      else
+        nohup env \
+          PYTHONPATH="$pythonpath" \
+          SAGELLM_PREFLIGHT_CANARY=0 \
+          SAGELLM_STARTUP_CANARY=0 \
+          SAGELLM_PERIODIC_CANARY=0 \
+          python -m sagellm.cli serve --backend "$backend" --model "$model" --host 0.0.0.0 --port "$port" --engine-port "$engine_port" >"$log_file" 2>&1 &
+      fi
     else
-      echo -e "${YELLOW}✗ 无法自动启动完整栈：未找到 sagellm CLI，也没有可用 Python + workspace 源码入口${NC}"
+      echo -e "${YELLOW}✗ 无法自动启动完整栈：未找到 vllm-hust/sagellm CLI，也没有可用 Python + workspace 源码入口${NC}"
       exit 1
     fi
   fi
@@ -689,7 +722,7 @@ start_full_stack_if_needed() {
   for _ in {1..90}; do
     sleep 2
     if gateway_inference_ready; then
-      echo -e "${GREEN}✅ sagellm 完整栈已就绪：$(gateway_probe_url)${NC}"
+      echo -e "${GREEN}✅ vllm-hust 完整栈已就绪：$(gateway_probe_url)${NC}"
       echo -e "   日志文件: ${GREEN}$log_file${NC}"
       if [[ "${DEFAULT_MODEL:-}" != "$model" ]]; then
         echo -e "${YELLOW}ℹ 当前自启动模型为 ${model}；若需与 UI 默认模型一致，请同步调整 DEFAULT_MODEL / WORKSTATION_BOOTSTRAP_MODEL${NC}"
@@ -698,7 +731,7 @@ start_full_stack_if_needed() {
     fi
   done
 
-  echo -e "${YELLOW}✗ sagellm 完整栈启动失败或 180s 内未达到可推理状态，请检查日志：$log_file${NC}"
+  echo -e "${YELLOW}✗ vllm-hust 完整栈启动失败或 180s 内未达到可推理状态，请检查日志：$log_file${NC}"
   exit 1
 }
 

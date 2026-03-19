@@ -1,4 +1,4 @@
-[sagellm]
+[vllm_hust]
 base_url = http://localhost:8093
 api_key = not-required
 default_model = YourModelName
@@ -6,7 +6,7 @@ backend_type = NVIDIA A100 80GB PCIe
 model_path = /path/to/your/model
 
 [hub]
-models_dir = ~/Downloads/sagellm-models
+models_dir = ~/Downloads/vllm-hust-models
 hf_endpoint = https://hf-mirror.com
 hf_token =
 
@@ -14,7 +14,7 @@ hf_token =
 port = 3000
 
 [brand]
-name = SageLLM 私有工作站
+name = vLLM-HUST 私有工作站
 accent_color = #6366f1
 logo =
 

@@ -1,7 +1,7 @@
 """
-SageLLM 工作站后端
+vLLM-HUST 工作站后端
 - 读取 config.ini 配置
-- 代理到 sagellm-gateway (OpenAI 兼容接口)
+- 代理到 vllm-hust-gateway (OpenAI 兼容接口)
 - 提供流式对话 / 模型列表 / 实时指标接口
 - 启动后自动打开浏览器
 """
@@ -39,17 +39,27 @@ if config_path.exists():
     config.read(config_path, encoding="utf-8")
 
 def cfg(section: str, key: str, fallback: str = "") -> str:
-    return config.get(section, key, fallback=fallback).strip()
+    # Prefer new vllm_hust section while keeping sagellm backward compatibility.
+    aliases = [section]
+    if section == "vllm_hust":
+        aliases.append("sagellm")
+    elif section == "sagellm":
+        aliases.insert(0, "vllm_hust")
+
+    for current in aliases:
+        if config.has_option(current, key):
+            return config.get(current, key, fallback=fallback).strip()
+    return fallback.strip()
 
 PORT         = int(cfg("server", "port", "3000"))
-BASE_URL     = cfg("sagellm", "base_url", "http://localhost:8080").rstrip("/")
-API_KEY      = cfg("sagellm", "api_key", "not-required")
-DEFAULT_MODEL = cfg("sagellm", "default_model", "default")
-BACKEND_TYPE = cfg("sagellm", "backend_type", "Ascend NPU")
-BRAND_NAME   = cfg("brand", "name", "SageLLM 私有工作站")
+BASE_URL     = cfg("vllm_hust", "base_url", "http://localhost:8080").rstrip("/")
+API_KEY      = cfg("vllm_hust", "api_key", "not-required")
+DEFAULT_MODEL = cfg("vllm_hust", "default_model", "default")
+BACKEND_TYPE = cfg("vllm_hust", "backend_type", "Ascend NPU")
+BRAND_NAME   = cfg("brand", "name", "vLLM-HUST 私有工作站")
 ACCENT_COLOR = cfg("brand", "accent_color", "#6366f1")
 LOGO_PATH    = cfg("brand", "logo", "")
-MODELS_DIR   = cfg("hub", "models_dir", "~/Downloads/sagellm-models")
+MODELS_DIR   = cfg("hub", "models_dir", "~/Downloads/vllm-hust-models")
 HF_ENDPOINT  = cfg("hub", "hf_endpoint", "https://hf-mirror.com")
 
 # ── Web search config ────────────────────────────────────────────────────────
@@ -63,7 +73,7 @@ COMMON_HEADERS = {"Authorization": f"Bearer {API_KEY}"}
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 
-app = FastAPI(title="SageLLM Workstation", docs_url=None, redoc_url=None)
+app = FastAPI(title="vLLM-HUST Workstation", docs_url=None, redoc_url=None)
 
 
 @app.get("/")
@@ -636,7 +646,7 @@ async def chat(request: Request):
                                 except Exception:
                                     pass
             except httpx.ConnectError:
-                msg = "推理引擎未启动，请先启动 sagellm-gateway ，然后刷新页面。"
+                msg = "推理引擎未启动，请先启动 vllm-hust-gateway ，然后刷新页面。"
                 yield f"data: {{\"choices\":[{{\"delta\":{{\"content\":\"{msg}\"}},\"finish_reason\":\"stop\"}}]}}\n\n".encode()
                 yield b"data: [DONE]\n\n"
             except Exception as e:
@@ -811,9 +821,10 @@ async def switch_backend(request: Request):
 
     BACKEND_TYPE = label
     # Persist to config.ini
-    if not config.has_section("sagellm"):
-        config.add_section("sagellm")
-    config.set("sagellm", "backend_type", label)
+    target_section = "vllm_hust"
+    if not config.has_section(target_section):
+        config.add_section(target_section)
+    config.set(target_section, "backend_type", label)
     try:
         with open(config_path, "w", encoding="utf-8") as fh:
             config.write(fh)
@@ -935,7 +946,7 @@ MODEL_CATALOG: list[dict[str, Any]] = [
      "tags": ["英文", "旗舰"], "color": "#10b981", "requires_auth": True},
 ]
 
-MODELS_DIR = Path(cfg("hub", "models_dir", "~/Downloads/sagellm-models")).expanduser()
+MODELS_DIR = Path(cfg("hub", "models_dir", "~/Downloads/vllm-hust-models")).expanduser()
 HF_ENDPOINT = cfg("hub", "hf_endpoint", "").strip()
 HF_TOKEN    = cfg("hub", "hf_token", "").strip() or None
 
@@ -1050,7 +1061,7 @@ def _download_worker(model_id: str, repo_id: str, save_path: Path, total_bytes: 
 @app.get("/api/hub/catalog")
 async def hub_catalog():
     installed = _get_installed()
-    default_model = cfg("sagellm", "default_model", DEFAULT_MODEL)
+    default_model = cfg("vllm_hust", "default_model", DEFAULT_MODEL)
     result = []
     for m in MODEL_CATALOG:
         item = dict(m)
