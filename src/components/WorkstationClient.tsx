@@ -6,6 +6,7 @@ import ChatPanel from "@/components/ChatPanel";
 import MetricsDashboard from "@/components/MetricsDashboard";
 import InferenceSidebar, { type ProcessStep } from "@/components/InferenceSidebar";
 import ModelHubModal from "@/components/ModelHubModal";
+import AgentLabModal from "@/components/AgentLabModal";
 import type { AppConfig, Message, MetricsSnapshot, SearchResult } from "@/types";
 
 const METRICS_INTERVAL = 3000;
@@ -106,6 +107,7 @@ export default function WorkstationClient({ config }: { config: AppConfig }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [thinkText, setThinkText] = useState("");
   const [modelHubOpen, setModelHubOpen] = useState(false);
+  const [agentLabOpen, setAgentLabOpen] = useState(false);
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -423,6 +425,7 @@ export default function WorkstationClient({ config }: { config: AppConfig }) {
         models={models}
         onModelChange={setModel}
         onOpenModelHub={() => setModelHubOpen(true)}
+        onOpenAgentLab={() => setAgentLabOpen(true)}
         online={online}
       />
       <main className="flex flex-1 overflow-hidden">
@@ -460,6 +463,12 @@ export default function WorkstationClient({ config }: { config: AppConfig }) {
         currentModel={model}
         onClose={() => setModelHubOpen(false)}
         onActivate={handleActivateModel}
+      />
+      <AgentLabModal
+        open={agentLabOpen}
+        currentModel={model}
+        accentColor={accentColor}
+        onClose={() => setAgentLabOpen(false)}
       />
     </div>
   );

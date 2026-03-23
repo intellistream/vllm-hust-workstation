@@ -10,6 +10,7 @@
 
 - **实时流式对话** — 接入任意 `vllm-hust-gateway`（OpenAI 兼容接口）
 - **实时监控面板** — TPS、延迟、GPU 利用率、显存趋势图
+- **Multi-Agent Optimization Lab** — 内置 Planner/Benchmarker/Diagnoser/Optimizer 多智能体链路，一键生成性能优化建议
 - **Prometheus 监控端点** — 内置 `/metrics`，可直接接入 Prometheus 抓取
 - **白牌化** — 品牌名 / Logo / 主题色可通过 `.env` 配置
 - **Node 单运行时** — 前后端统一收敛到 Next.js Route Handlers，避免 Python + Node 双依赖栈
@@ -96,6 +97,9 @@ WORKSTATION_BOOTSTRAP_BACKEND=cuda
 WORKSTATION_AUTO_DETECT_BACKEND=false
 ```
 
+如需启动 EvoScientist，请在 EvoScientist 仓库中执行它自己的启动脚本；
+如需单独启动本地 vllm-hust OpenAI 服务，请在 vllm-hust 仓库中直接执行原生 `vllm-hust serve` 命令。
+
 ---
 
 ## 🔌 与 vllm-hust-gateway 对接
@@ -105,6 +109,7 @@ WORKSTATION_AUTO_DETECT_BACKEND=false
 | `POST /api/chat` | `POST /v1/chat/completions` | 流式对话（SSE 透传） |
 | `GET  /api/models` | `GET /v1/models` | 模型列表下拉（上游离线时返回兜底模型并显式标记离线） |
 | `GET  /api/metrics` | `GET /v1/stats` + `GET /metrics` | 监控面板 JSON 聚合 |
+| `POST /api/agents/run` | `POST /v1/chat/completions` | 多智能体性能实验编排（规划→压测→诊断→优化） |
 | `GET  /metrics` | Workstation internal registry | Prometheus 抓取端点 |
 
 > `quickstart.sh` 会先做一次真实推理探测，而不是只看 `/health`。因此本地若只有空 gateway、没有健康 engine，也会被判定为“未就绪”并自动修复。

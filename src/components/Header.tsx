@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck, Cpu, ChevronDown, PackageOpen } from "lucide-react";
+import { ShieldCheck, Cpu, ChevronDown, PackageOpen, Bot } from "lucide-react";
 
 interface HeaderProps {
   brandName: string;
@@ -10,6 +10,7 @@ interface HeaderProps {
   models: string[];
   onModelChange: (m: string) => void;
   onOpenModelHub: () => void;
+  onOpenAgentLab: () => void;
   online: boolean;
 }
 
@@ -21,6 +22,7 @@ export default function Header({
   models,
   onModelChange,
   onOpenModelHub,
+  onOpenAgentLab,
   online,
 }: HeaderProps) {
   return (
@@ -72,6 +74,14 @@ export default function Header({
 
       {/* Model selector */}
       <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={onOpenAgentLab}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-cyan-300/25 bg-cyan-300/10 text-cyan-100 hover:bg-cyan-300/20 transition-colors text-sm"
+        >
+          <Bot size={14} />
+          Agent Lab
+        </button>
         <button
           type="button"
           onClick={onOpenModelHub}

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SageLLM 工作站</title>
+<title>vLLM-HUST 工作站</title>
 <style>
 :root {
   --accent: #6366f1;
@@ -328,7 +328,7 @@ input[type=range].param-slider::-webkit-slider-thumb:hover{transform:scale(1.2)}
   <header>
     <div class="brand">
       <div id="brand-icon">AI</div>
-      <span id="brand-name">SageLLM 工作站</span>
+      <span id="brand-name">vLLM-HUST 工作站</span>
     </div>
     <div class="header-center">
       <button class="hdr-btn" id="sysprompt-btn" onclick="openSysPrompt()">
@@ -549,7 +549,7 @@ input[type=range].param-slider::-webkit-slider-thumb:hover{transform:scale(1.2)}
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
-let CFG = { brandName:'SageLLM 工作站', accentColor:'#6366f1', hasLogo:false, defaultModel:'default', backendType:'Ascend NPU' };
+let CFG = { brandName:'vLLM-HUST 工作站', accentColor:'#6366f1', hasLogo:false, defaultModel:'default', backendType:'Ascend NPU' };
 let messages = [];
 let _msgSeq = 0;
 const nextMsgId = () => 'msg-' + (++_msgSeq);
@@ -1205,7 +1205,7 @@ function copyCode(btn, id) {
 function exportChat() {
   if (messages.length === 0) { showToast('没有可导出的对话', true); return; }
   const model = document.getElementById('model-select').value;
-  let md = `# SageLLM 对话导出\n\n- **模型**: ${model}\n- **时间**: ${new Date().toLocaleString('zh-CN')}\n`;
+  let md = `# vLLM-HUST 对话导出\n\n- **模型**: ${model}\n- **时间**: ${new Date().toLocaleString('zh-CN')}\n`;
   if (sysPrompt) md += `- **System Prompt**: ${sysPrompt.slice(0,80)}…\n`;
   md += `- **参数**: 温度=${genParams.temperature} · 最大长度=${genParams.max_tokens} · Top-P=${genParams.top_p}\n\n---\n\n`;
   messages.forEach(m => {

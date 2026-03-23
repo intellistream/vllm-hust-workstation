@@ -1,10 +1,10 @@
 @echo off
 chcp 65001 >nul
-title SageLLM 工作站
+title vLLM-HUST 工作站
 color 0B
 echo.
 echo  ╔══════════════════════════════════════╗
-echo  ║    SageLLM 工作站  私有 AI 助手     ║
+echo  ║   vLLM-HUST 工作站  私有 AI 助手    ║
 echo  ║    Next.js 单运行时开发启动         ║
 echo  ╚══════════════════════════════════════╝
 echo.

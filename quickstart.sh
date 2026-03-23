@@ -109,7 +109,7 @@ CUDA_24GB_STARTUP_MODEL_MENU_LABELS=(
 )
 
 echo -e "${BLUE}╔══════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     SageLLM Workstation  —  快速启动         ║${NC}"
+echo -e "${BLUE}║     vLLM-HUST Workstation  —  快速启动       ║${NC}"
 echo -e "${BLUE}╚══════════════════════════════════════════════╝${NC}"
 echo ""
 
@@ -307,6 +307,57 @@ bootstrap_backend() {
 
   raw="${BACKEND_TYPE:-CPU}"
   printf '%s\n' "$raw" | tr '[:upper:]' '[:lower:]'
+}
+
+find_ascend_toolkit_home() {
+  local candidate
+  for candidate in \
+    "${ASCEND_TOOLKIT_HOME:-}" \
+    /usr/local/Ascend/ascend-toolkit/latest \
+    /usr/local/Ascend/ascend-toolkit.bak.8.1/latest
+  do
+    if [[ -n "$candidate" && -d "$candidate" ]]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+prepare_backend_runtime_env() {
+  local backend="$1"
+  local parent_dir
+  local ascend_env_script
+  local toolkit_home
+
+  if [[ "$backend" != "ascend" ]]; then
+    return 0
+  fi
+
+  parent_dir="$(cd "$SCRIPT_DIR/.." && pwd)"
+  ascend_env_script="$parent_dir/vllm-hust/scripts/use_single_ascend_env.sh"
+
+  if [[ ! -f "$ascend_env_script" ]]; then
+    echo -e "${YELLOW}⚠ 未找到 Ascend 环境脚本：$ascend_env_script${NC}"
+    return 0
+  fi
+
+  toolkit_home="$(find_ascend_toolkit_home || true)"
+  if [[ -z "$toolkit_home" ]]; then
+    echo -e "${YELLOW}⚠ 未找到 Ascend Toolkit 目录，可能导致 libhccl.so 缺失${NC}"
+    return 0
+  fi
+
+  # shellcheck disable=SC1090
+  source "$ascend_env_script" "$toolkit_home"
+
+  if [[ -d "$toolkit_home/python/site-packages" ]]; then
+    if [[ -n "${PYTHONPATH:-}" ]]; then
+      export PYTHONPATH="$toolkit_home/python/site-packages:$PYTHONPATH"
+    else
+      export PYTHONPATH="$toolkit_home/python/site-packages"
+    fi
+  fi
 }
 
 gateway_models_json() {
@@ -601,6 +652,10 @@ select_bootstrap_model_interactively() {
 start_full_stack_if_needed() {
   local auto_start
   local auto_heal
+  local tool_call_parser
+  local enable_auto_tool_choice
+  local disable_prefix_caching
+  local disable_chunked_prefill
   local port
   local engine_port
   local log_dir
@@ -611,6 +666,10 @@ start_full_stack_if_needed() {
   local pythonpath
   auto_start="${WORKSTATION_AUTO_START_GATEWAY:-true}"
   auto_heal="${WORKSTATION_AUTO_HEAL_GATEWAY:-true}"
+  tool_call_parser="${WORKSTATION_TOOL_CALL_PARSER:-openai}"
+  enable_auto_tool_choice="${WORKSTATION_ENABLE_AUTO_TOOL_CHOICE:-true}"
+  disable_prefix_caching="${WORKSTATION_DISABLE_PREFIX_CACHING:-false}"
+  disable_chunked_prefill="${WORKSTATION_DISABLE_CHUNKED_PREFILL:-false}"
   port="$(gateway_port)"
   engine_port="${WORKSTATION_ENGINE_PORT:-$((port + 1))}"
   log_dir="$SCRIPT_DIR/.logs"
@@ -654,16 +713,69 @@ start_full_stack_if_needed() {
   echo -e "   后端: ${GREEN}${backend}${NC}"
   echo -e "   端口: ${GREEN}${port}${NC} (engine: ${engine_port})"
 
+  prepare_backend_runtime_env "$backend"
+
   stop_local_vllm_hust_serve_processes "$port" "$engine_port"
   stop_local_processes_on_port "$port"
   stop_local_processes_on_port "$engine_port"
 
   if command -v vllm-hust &>/dev/null; then
+    local serve_help
+    local -a serve_args
+    serve_help="$(vllm-hust serve --help 2>&1 || true)"
+    serve_args=(serve)
+
+    if [[ "$serve_help" == *"--backend"* ]]; then
+      serve_args+=(--backend "$backend")
+    fi
+
+    if [[ "$serve_help" == *"--model"* ]]; then
+      serve_args+=(--model "$model")
+    else
+      # Newer vllm-hust/vllm CLI variants take model as positional argument.
+      serve_args+=("$model")
+    fi
+
+    serve_args+=(--host 0.0.0.0 --port "$port")
+
+    if [[ "$serve_help" == *"--engine-port"* ]]; then
+      serve_args+=(--engine-port "$engine_port")
+    fi
+
+    if [[ "$backend" == "ascend" ]]; then
+      # Keep quickstart stable on mixed Ascend runtime versions by disabling graph path.
+      # This avoids runtime symbols that are unavailable on older CANN builds.
+      serve_args+=(--enforce-eager -cc.cudagraph_mode=0)
+
+      # Prefer stability on older CANN builds where fused infer attention may crash
+      # for some model head dimensions during chunked/prefix prefill.
+      if [[ "${WORKSTATION_ASCEND_STABLE_MODE:-true}" == "true" ]]; then
+        disable_prefix_caching="true"
+        disable_chunked_prefill="true"
+      fi
+    fi
+
+    if [[ "$disable_prefix_caching" == "true" && "$serve_help" == *"--enable-prefix-caching"* ]]; then
+      serve_args+=(--no-enable-prefix-caching)
+    fi
+
+    if [[ "$disable_chunked_prefill" == "true" && "$serve_help" == *"--enable-chunked-prefill"* ]]; then
+      serve_args+=(--no-enable-chunked-prefill)
+    fi
+
+    # Keep OpenAI tool-calling compatible for multi-agent frameworks when supported.
+    if [[ "$enable_auto_tool_choice" == "true" && "$serve_help" == *"--enable-auto-tool-choice"* ]]; then
+      serve_args+=(--enable-auto-tool-choice)
+    fi
+    if [[ -n "$tool_call_parser" && "$serve_help" == *"--tool-call-parser"* ]]; then
+      serve_args+=(--tool-call-parser "$tool_call_parser")
+    fi
+
     nohup env \
       VLLM_HUST_PREFLIGHT_CANARY=0 \
       VLLM_HUST_STARTUP_CANARY=0 \
       VLLM_HUST_PERIODIC_CANARY=0 \
-      vllm-hust serve --backend "$backend" --model "$model" --host 0.0.0.0 --port "$port" --engine-port "$engine_port" >"$log_file" 2>&1 &
+      vllm-hust "${serve_args[@]}" >"$log_file" 2>&1 &
   else
     pythonpath="$(build_workspace_pythonpath)"
     if command -v python3 &>/dev/null && [[ -n "$pythonpath" ]]; then
@@ -759,5 +871,6 @@ else
   echo "  dev     — 本地 npm 开发模式"
   echo ""
   echo "可通过 WORKSTATION_INTERACTIVE_MODEL_MENU=false 关闭启动时模型菜单"
+  echo "可通过 WORKSTATION_TOOL_CALL_PARSER=pythonic 切换工具解析器"
   exit 1
 fi
