@@ -1,0 +1,16 @@
+[Unit]
+Description=vLLM-HUST Backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__REPO_DIR__
+ExecStart=/usr/bin/env bash __REPO_DIR__/scripts/run_backend_systemd.sh
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillMode=process
+
+[Install]
+WantedBy=default.target

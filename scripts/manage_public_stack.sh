@@ -5,7 +5,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 QUICKSTART="$REPO_DIR/quickstart.sh"
 DEPLOY_WORKSTATION="$REPO_DIR/scripts/deploy_workstation.sh"
+DEPLOY_BACKEND="$REPO_DIR/scripts/deploy_backend_service.sh"
 WORKSTATION_SERVICE="${WORKSTATION_SYSTEMD_SERVICE_NAME:-vllm-hust-workstation}"
+BACKEND_SERVICE="${WORKSTATION_BACKEND_SYSTEMD_SERVICE_NAME:-vllm-hust-backend}"
 BACKEND_MODELS_URL="${BACKEND_MODELS_URL:-http://127.0.0.1:8080/v1/models}"
 WORKSTATION_MODELS_URL="${WORKSTATION_MODELS_URL:-http://127.0.0.1:3001/api/models}"
 
@@ -15,11 +17,12 @@ Usage: ./scripts/manage_public_stack.sh <command>
 
 Commands:
   status               Show backend, workstation, and public URL health
-  restart-backend      Restart local vllm-hust backend via quickstart
+  restart-backend      Restart local vllm-hust backend systemd service
+  deploy-backend       Install/update and restart the backend systemd service
   restart-workstation  Restart the workstation systemd service
   deploy-workstation   Rebuild and redeploy the workstation runtime via systemd
   restart-all          Restart backend first, then restart workstation
-  logs                 Show workstation journal and backend log tail
+  logs                 Show backend and workstation journals
 EOF
 }
 
@@ -33,6 +36,7 @@ require_command() {
 ensure_paths() {
   [[ -x "$QUICKSTART" ]] || { echo "Missing quickstart: $QUICKSTART" >&2; exit 1; }
   [[ -x "$DEPLOY_WORKSTATION" ]] || { echo "Missing deploy script: $DEPLOY_WORKSTATION" >&2; exit 1; }
+  [[ -x "$DEPLOY_BACKEND" ]] || { echo "Missing backend deploy script: $DEPLOY_BACKEND" >&2; exit 1; }
 }
 
 curl_status() {
@@ -47,7 +51,11 @@ curl_status() {
 }
 
 restart_backend() {
-  (cd "$REPO_DIR" && WORKSTATION_INTERACTIVE_LAUNCHER=false "$QUICKSTART" restart-backend)
+  (cd "$REPO_DIR" && "$DEPLOY_BACKEND" restart)
+}
+
+deploy_backend() {
+  (cd "$REPO_DIR" && "$DEPLOY_BACKEND" ci-deploy)
 }
 
 restart_workstation() {
@@ -59,11 +67,11 @@ deploy_workstation() {
 }
 
 show_logs() {
+  echo "=== backend journal ==="
+  systemctl --user --no-pager --full status "$BACKEND_SERVICE.service" || true
+  echo
   echo "=== workstation journal ==="
   systemctl --user --no-pager --full status "$WORKSTATION_SERVICE.service" || true
-  echo
-  echo "=== backend log tail ==="
-  tail -n 80 "$REPO_DIR/.logs/vllm-hust-serve.log" || true
 }
 
 show_status() {
@@ -74,6 +82,9 @@ show_status() {
   echo "=== public health ==="
   curl_status "public workstation" "https://ws.sage.org.ai/api/models" || true
   curl_status "public backend" "https://api.sage.org.ai/v1/models" || true
+  echo
+  echo "=== backend service ==="
+  systemctl --user --no-pager --full status "$BACKEND_SERVICE.service" || true
   echo
   echo "=== workstation service ==="
   systemctl --user --no-pager --full status "$WORKSTATION_SERVICE.service" || true
@@ -93,6 +104,9 @@ main() {
     restart-backend)
       restart_backend
       ;;
+    deploy-backend)
+      deploy_backend
+      ;;
     restart-workstation)
       restart_workstation
       ;;
@@ -100,7 +114,7 @@ main() {
       deploy_workstation
       ;;
     restart-all)
-      restart_backend
+      deploy_backend
       restart_workstation
       show_status
       ;;

@@ -4,6 +4,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# shellcheck disable=SC1091
+source "$SCRIPT_DIR/scripts/runtime_manager.sh"
+
 BLUE='\033[0;34m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -495,84 +498,21 @@ gateway_is_running() {
   [[ -n "$code" && "$code" != "000" ]]
 }
 
-build_workspace_pythonpath() {
-  local parent_dir
-  local repo
-  local pythonpath=""
-  local candidate
-  parent_dir="$(cd "$SCRIPT_DIR/.." && pwd)"
-  for repo in \
-    vllm-hust \
-    vllm-hust-protocol \
-    vllm-hust-backend \
-    vllm-hust-core \
-    vllm-hust-control-plane \
-    vllm-hust-gateway \
-    vllm-hust-kv-cache \
-    vllm-hust-comm \
-    vllm-hust-compression
-  do
-    for candidate in "$parent_dir/$repo" "$parent_dir/$repo/src"; do
-      if [[ -d "$candidate" ]]; then
-        case "$candidate" in
-          */src)
-            pythonpath="${pythonpath:+$pythonpath:}$candidate"
-            ;;
-          *)
-            if [[ -d "$candidate/vllm" || -d "$candidate/vllm_hust" ]]; then
-              pythonpath="${pythonpath:+$pythonpath:}$candidate"
-            fi
-            ;;
-        esac
-      fi
-    done
-  done
-  printf '%s\n' "$pythonpath"
-}
-
-active_python_command() {
-  if command -v python3 &>/dev/null; then
-    command -v python3
-    return 0
-  fi
-  if command -v python &>/dev/null; then
-    command -v python
-    return 0
-  fi
-  return 1
-}
-
-python_runtime_supports_vllm() {
-  local python_bin="$1"
-  local pythonpath="${2:-}"
-
-  if [[ -n "$pythonpath" ]]; then
-    PYTHONNOUSERSITE=1 PYTHONPATH="$pythonpath" "$python_bin" -c 'import torch, transformers, huggingface_hub; import vllm.entrypoints.cli.main' >/dev/null 2>&1
-    return $?
-  fi
-
-  PYTHONNOUSERSITE=1 "$python_bin" -c 'import torch, transformers, huggingface_hub; import vllm.entrypoints.cli.main' >/dev/null 2>&1
-}
-
 print_backend_runtime_preflight_error() {
   local python_bin="${1:-}"
   local pythonpath="${2:-}"
   local details=""
 
   if [[ -n "$python_bin" ]]; then
-    if [[ -n "$pythonpath" ]]; then
-      details="$(PYTHONNOUSERSITE=1 PYTHONPATH="$pythonpath" "$python_bin" -c 'import torch, transformers, huggingface_hub; import vllm.entrypoints.cli.main' 2>&1 || true)"
-    else
-      details="$(PYTHONNOUSERSITE=1 "$python_bin" -c 'import torch, transformers, huggingface_hub; import vllm.entrypoints.cli.main' 2>&1 || true)"
-    fi
+    details="$(python_runtime_import_details "$python_bin" "$pythonpath" 2>&1 || true)"
   fi
 
-  echo -e "${YELLOW}✗ 当前 Python / vllm-hust 运行时不完整，quickstart 只会自动补齐 Node.js，不会自动安装后端 Python 依赖${NC}"
+  echo -e "${YELLOW}✗ 当前 Python / vllm-hust 运行时不完整，quickstart 已尝试通过 ascend-runtime-manager 自动修复，但当前环境仍不可用${NC}"
   if [[ -n "$details" ]]; then
     echo -e "${YELLOW}  失败原因：${NC}"
     printf '%s\n' "$details" | sed 's/^/   /'
   fi
-  echo -e "${YELLOW}  请先在当前 conda 环境中补齐 torch、transformers、huggingface_hub 等依赖，再重试。${NC}"
+  echo -e "${YELLOW}  可手动执行：hust-ascend-manager runtime repair --repo $(find_vllm_hust_repo_dir || printf '/path/to/vllm-hust')${NC}"
 }
 
 bootstrap_model() {
@@ -1442,7 +1382,7 @@ start_full_stack_if_needed() {
 
     if command -v vllm-hust &>/dev/null; then
       serve_help="$(PYTHONNOUSERSITE=1 vllm-hust serve --help 2>&1 || true)"
-    elif [[ -n "$python_bin" ]] && [[ -n "$pythonpath" ]] && python_runtime_supports_vllm "$python_bin" "$pythonpath"; then
+    elif [[ -n "$python_bin" ]] && [[ -n "$pythonpath" ]] && ensure_backend_runtime_ready "$python_bin" "$pythonpath"; then
       serve_help="$(PYTHONNOUSERSITE=1 PYTHONPATH="$pythonpath" "$python_bin" -m vllm.entrypoints.cli.main serve --help 2>&1 || true)"
     fi
 
@@ -1490,7 +1430,7 @@ start_full_stack_if_needed() {
       serve_args+=(--tool-call-parser "$tool_call_parser")
     fi
 
-    if [[ -n "$python_bin" ]] && [[ -n "$pythonpath" ]] && python_runtime_supports_vllm "$python_bin" "$pythonpath"; then
+    if [[ -n "$python_bin" ]] && [[ -n "$pythonpath" ]] && ensure_backend_runtime_ready "$python_bin" "$pythonpath"; then
       launch_local_workstation_backend \
         "$log_file" \
         "$treat_as_ascend_runtime" \

@@ -52,6 +52,7 @@
 - Ascend 场景下，`quickstart.sh` 会优先复用 `hust-ascend-manager` 环境，并默认以 `COMPILE_CUSTOM_KERNELS=0` 启动本地后端，避免在工作站启动前触发 custom kernels 编译
 - 若本机没有 `node/npm`，且当前 shell 已激活 conda，`quickstart.sh` 默认会尝试把 Node.js 20 自动安装到当前 conda 环境，再继续走 `dev` 模式启动
 - 若未显式配置 `HF_ENDPOINT`，workstation 会默认走 `https://hf-mirror.com`；若镜像也不可达且当前所选模型未缓存，才会回退到本机已有缓存模型继续启动
+- 若检测到当前 Python / `vllm-hust` 运行时不完整，quickstart 与 backend deploy 会优先调用 `ascend-runtime-manager runtime repair` 自动修复当前环境，而不是只提示手工 `pip install`
 - 若前端 `.next` 构建缓存来自其他机器路径或当前前端已返回 500，`quickstart.sh` 会自动清理旧缓存并重启前端
 - 若在本地终端执行 `./quickstart.sh`，启动前会出现交互式模型菜单；脚本会优先按实际硬件自动识别后端（如 `nvidia-smi -> cuda`），并在 CUDA 场景下按 8GB / 12GB / 16GB / 24GB+ 显存档位给推荐模型，选择结果会同步写回 `.env` 的 `WORKSTATION_BOOTSTRAP_MODEL` / `DEFAULT_MODEL`
 - 若本地已有 gateway 但未注册健康 engine，脚本可自动重建本地服务，避免“UI 已启动但 chat 一直报 No healthy LLM engine”
@@ -255,6 +256,9 @@ npm run start
 
 这套仓库内置了最小部署骨架：
 
+- backend deploy 脚本: `scripts/deploy_backend_service.sh`
+- backend systemd 启动脚本: `scripts/run_backend_systemd.sh`
+- backend unit 模板: `deploy/systemd/vllm-hust-backend.service.template`
 - deploy 脚本: `scripts/deploy_workstation.sh`
 - systemd 启动脚本: `scripts/run_workstation_systemd.sh`
 - unit 模板: `deploy/systemd/vllm-hust-workstation.service.template`
@@ -270,13 +274,17 @@ cp .env.example .env
 #    至少确认这些变量：
 #    VLLM_HUST_BASE_URL / APP_PORT / APP_BRAND_NAME / APP_FRAME_ANCESTORS
 
-# 3) 本机一次性安装 systemd 用户服务
+# 3) 本机一次性安装 backend / workstation 的 systemd 用户服务
+./scripts/deploy_backend_service.sh install-service
 ./scripts/deploy_workstation.sh install-service
 
-# 4) 本机构建并切换到 production runtime
+# 4) 先接管 backend，再构建并切换 workstation 到 production runtime
+./scripts/deploy_backend_service.sh deploy
 ./scripts/deploy_workstation.sh deploy
 
 # 5) 查看服务状态 / 日志
+./scripts/deploy_backend_service.sh status
+./scripts/deploy_backend_service.sh logs
 ./scripts/deploy_workstation.sh status
 ./scripts/deploy_workstation.sh logs
 ```
@@ -291,8 +299,8 @@ cp .env.example .env
 
 当前状态：
 
-- `workstation` 已经是 `systemd --user` 常驻
-- `vllm-hust` backend 仍通过 `quickstart.sh` 的本地完整栈逻辑启动和重启
+- `workstation` 是 `systemd --user` 常驻
+- `vllm-hust` backend 现在也可以由 `systemd --user` 常驻接管
 
 以后日常只需要记这几个命令：
 
@@ -300,7 +308,10 @@ cp .env.example .env
 # 查看本地与公网状态
 ./scripts/manage_public_stack.sh status
 
-# 重启本地 vllm-hust backend
+# 安装 / 更新并重启本地 vllm-hust backend systemd 服务
+./scripts/manage_public_stack.sh deploy-backend
+
+# 重启本地 vllm-hust backend systemd 服务
 ./scripts/manage_public_stack.sh restart-backend
 
 # 仅重启 workstation systemd 服务
@@ -318,9 +329,20 @@ cp .env.example .env
 
 推荐顺序：
 
-- 只换模型、修 backend：`restart-backend`
+- 首次切到常驻服务：`deploy-backend`，然后 `deploy-workstation`
+- 只换模型、修 backend：`deploy-backend` 或 `restart-backend`
 - 只改页面或 workstation 配置：`deploy-workstation`
 - 两边都想重新拉起：`restart-all`
+
+运行时修复的单一入口：
+
+```bash
+cd /home/shuhao/vllm-hust-dev-hub/ascend-runtime-manager
+PYTHONPATH=src python -m hust_ascend_manager.cli runtime check --repo /home/shuhao/vllm-hust
+PYTHONPATH=src python -m hust_ascend_manager.cli runtime repair --repo /home/shuhao/vllm-hust
+```
+
+`workstation` 自身不会再维护另一套手工 Python 修复步骤；当 quickstart / backend deploy 检测到 `vllm-hust` 运行时不完整时，会优先走这套 manager 流程。
 
 这套命令会保持当前挂载关系：
 
@@ -328,6 +350,16 @@ cp .env.example .env
 - 本地 workstation: `http://127.0.0.1:3001`
 - 公网 workstation: `https://ws.sage.org.ai`
 - 公网 backend: `https://api.sage.org.ai`
+
+可选环境变量：
+
+```dotenv
+# backend 的 systemd --user 常驻服务名
+WORKSTATION_BACKEND_SYSTEMD_SERVICE_NAME=vllm-hust-backend
+
+# 后端运行时不完整时，是否自动调用 ascend-runtime-manager 做修复
+WORKSTATION_AUTO_REPAIR_BACKEND_RUNTIME=true
+```
 
 ### 多模型 Fleet 自动部署
 
@@ -366,6 +398,30 @@ cp .env.example .env
 1. 先把权重放进本机 Hugging Face cache，或把 `only_cached` 改成 `false`
 2. 再把 `deploy/model-fleet.json` 里对应模型的 `enabled` 打开
 3. 本地再次执行 `./scripts/deploy_model_fleet.sh deploy`
+
+### Workspace 检索脚本
+
+如果 VS Code / Copilot 当前会话里的 semantic workspace search 不可用，可以直接用仓库内置脚本替代：
+
+```bash
+# 查看默认会搜索哪些本地仓库
+./scripts/workspace_search.sh repos
+
+# 搜索文本
+./scripts/workspace_search.sh text "deploy-backend"
+
+# 把 upstream 参考仓也一起搜
+./scripts/workspace_search.sh text --scope all "Qwen/Qwen2.5-7B-Instruct"
+
+# 按文件名筛选
+./scripts/workspace_search.sh files "systemd|deploy"
+```
+
+说明：
+
+- 默认 scope 是 `local`，覆盖当前这套采购/交付相关仓库：`vllm-hust`、`vllm-hust-workstation`、`vllm-hust-website`、`vllm-hust-docs`、`vllm-ascend-hust`、`vllm-hust-dev-hub`、`vllm-hust-benchmark`、`EvoScientist`
+- 如果要把 `reference-repos/` 里的 upstream 仓库一起搜，用 `--scope upstream` 或 `--scope all`
+- 底层直接使用 `rg`，不依赖 semantic index
 
 ### Cloudflare Tunnel 需要什么凭据
 
