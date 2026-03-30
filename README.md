@@ -259,6 +259,7 @@ npm run start
 - backend deploy 脚本: `scripts/deploy_backend_service.sh`
 - backend systemd 启动脚本: `scripts/run_backend_systemd.sh`
 - backend unit 模板: `deploy/systemd/vllm-hust-backend.service.template`
+- website deploy 脚本: `../vllm-hust-website/scripts/deploy_website_service.sh`
 - deploy 脚本: `scripts/deploy_workstation.sh`
 - systemd 启动脚本: `scripts/run_workstation_systemd.sh`
 - unit 模板: `deploy/systemd/vllm-hust-workstation.service.template`
@@ -274,19 +275,23 @@ cp .env.example .env
 #    至少确认这些变量：
 #    VLLM_HUST_BASE_URL / APP_PORT / APP_BRAND_NAME / APP_FRAME_ANCESTORS
 
-# 3) 本机一次性安装 backend / workstation 的 systemd 用户服务
+# 3) 本机一次性安装 backend / workstation / website 的 systemd 用户服务
 ./scripts/deploy_backend_service.sh install-service
 ./scripts/deploy_workstation.sh install-service
+../vllm-hust-website/scripts/deploy_website_service.sh install-service
 
-# 4) 先接管 backend，再构建并切换 workstation 到 production runtime
+# 4) 先接管 backend，再构建并切换 workstation / website 到常驻服务
 ./scripts/deploy_backend_service.sh deploy
 ./scripts/deploy_workstation.sh deploy
+../vllm-hust-website/scripts/deploy_website_service.sh deploy
 
 # 5) 查看服务状态 / 日志
 ./scripts/deploy_backend_service.sh status
 ./scripts/deploy_backend_service.sh logs
 ./scripts/deploy_workstation.sh status
 ./scripts/deploy_workstation.sh logs
+../vllm-hust-website/scripts/deploy_website_service.sh status
+../vllm-hust-website/scripts/deploy_website_service.sh logs
 ```
 
 说明：
@@ -301,12 +306,16 @@ cp .env.example .env
 
 - `workstation` 是 `systemd --user` 常驻
 - `vllm-hust` backend 现在也可以由 `systemd --user` 常驻接管
+- `website` 也可以本地以 `systemd --user` 常驻挂在 `127.0.0.1:8000`
 
 以后日常只需要记这几个命令：
 
 ```bash
 # 查看本地与公网状态
 ./scripts/manage_public_stack.sh status
+
+# 打开统一交互菜单
+./scripts/manage_public_stack.sh menu
 
 # 安装 / 更新并重启本地 vllm-hust backend systemd 服务
 ./scripts/manage_public_stack.sh deploy-backend
@@ -316,6 +325,12 @@ cp .env.example .env
 
 # 仅重启 workstation systemd 服务
 ./scripts/manage_public_stack.sh restart-workstation
+
+# 仅重启 website systemd 服务
+./scripts/manage_public_stack.sh restart-website
+
+# 同时安装 / 更新两个 UI 服务
+./scripts/manage_public_stack.sh deploy-ui
 
 # 若你改了前端代码或 .env，重新构建并部署 workstation
 ./scripts/manage_public_stack.sh deploy-workstation
@@ -329,9 +344,9 @@ cp .env.example .env
 
 推荐顺序：
 
-- 首次切到常驻服务：`deploy-backend`，然后 `deploy-workstation`
+- 首次切到常驻服务：`deploy-backend`，然后 `deploy-ui`
 - 只换模型、修 backend：`deploy-backend` 或 `restart-backend`
-- 只改页面或 workstation 配置：`deploy-workstation`
+- 只改页面或 UI：`deploy-ui`、`deploy-workstation` 或 `deploy-website`
 - 两边都想重新拉起：`restart-all`
 
 运行时修复的单一入口：
@@ -356,6 +371,13 @@ PYTHONPATH=src python -m hust_ascend_manager.cli runtime repair --repo /home/shu
 ```dotenv
 # backend 的 systemd --user 常驻服务名
 WORKSTATION_BACKEND_SYSTEMD_SERVICE_NAME=vllm-hust-backend
+
+# website 仓库路径与 website 的 systemd --user 常驻服务名
+WORKSTATION_WEBSITE_REPO_DIR=/home/shuhao/vllm-hust-website
+WEBSITE_SYSTEMD_SERVICE_NAME=vllm-hust-website
+
+# website 本地检查地址
+WEBSITE_URL=http://127.0.0.1:8000
 
 # 后端运行时不完整时，是否自动调用 ascend-runtime-manager 做修复
 WORKSTATION_AUTO_REPAIR_BACKEND_RUNTIME=true
