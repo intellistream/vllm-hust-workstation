@@ -16,6 +16,13 @@ BACKEND_MODELS_URL="${BACKEND_MODELS_URL:-http://127.0.0.1:8080/v1/models}"
 WORKSTATION_MODELS_URL="${WORKSTATION_MODELS_URL:-http://127.0.0.1:3001/api/models}"
 WEBSITE_URL="${WEBSITE_URL:-http://127.0.0.1:8000}"
 
+if [[ -f "$REPO_DIR/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$REPO_DIR/.env" 2>/dev/null || true
+  set +a
+fi
+
 usage() {
   cat <<'EOF'
 Usage: ./scripts/manage_public_stack.sh <command>
@@ -59,11 +66,18 @@ ensure_paths() {
 curl_status() {
   local label="$1"
   local url="$2"
-  if curl -fsS --max-time 10 "$url" >/dev/null 2>&1; then
+  shift 2
+  if curl -fsS --max-time 10 "$@" "$url" >/dev/null 2>&1; then
     echo "[ok] $label -> $url"
   else
     echo "[fail] $label -> $url"
     return 1
+  fi
+}
+
+backend_probe_args() {
+  if [[ -n "${VLLM_HUST_API_KEY:-}" && "${VLLM_HUST_API_KEY}" != "not-required" ]]; then
+    printf '%s\n' "-H" "Authorization: Bearer ${VLLM_HUST_API_KEY}"
   fi
 }
 
@@ -122,14 +136,17 @@ show_logs() {
 }
 
 show_status() {
+  local -a backend_args
+  mapfile -t backend_args < <(backend_probe_args)
+
   echo "=== local health ==="
-  curl_status "backend" "$BACKEND_MODELS_URL" || true
+  curl_status "backend" "$BACKEND_MODELS_URL" "${backend_args[@]}" || true
   curl_status "workstation" "$WORKSTATION_MODELS_URL" || true
   curl_status "website" "$WEBSITE_URL" || true
   echo
   echo "=== public health ==="
   curl_status "public workstation" "https://ws.sage.org.ai/api/models" || true
-  curl_status "public backend" "https://api.sage.org.ai/v1/models" || true
+  curl_status "public backend" "https://api.sage.org.ai/v1/models" "${backend_args[@]}" || true
   echo
   show_service_status "backend" "$BACKEND_SERVICE"
   echo

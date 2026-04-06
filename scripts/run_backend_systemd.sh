@@ -179,7 +179,7 @@ ensure_local_gateway_target() {
 main() {
   local backend model port engine_port python_bin pythonpath serve_help target_device
   local gpu_memory_utilization tool_call_parser compile_custom_kernels treat_as_ascend_runtime
-  local library_path effective_library_path hf_endpoint
+  local library_path effective_library_path hf_endpoint backend_api_key
   local disable_prefix_caching="false"
   local disable_chunked_prefill="false"
   local -a serve_args env_assignments command_words
@@ -194,6 +194,7 @@ main() {
   python_bin="${WORKSTATION_VLLM_PYTHON_BIN:-}"
   library_path="${WORKSTATION_VLLM_LIBRARY_PATH:-}"
   hf_endpoint="${HF_ENDPOINT:-https://hf-mirror.com}"
+  backend_api_key="${WORKSTATION_VLLM_API_KEY:-${VLLM_HUST_API_KEY:-}}"
   target_device="$(backend_target_device "$backend")"
   gpu_memory_utilization="${WORKSTATION_GPU_MEMORY_UTILIZATION:-}"
   tool_call_parser="${WORKSTATION_TOOL_CALL_PARSER:-$(default_tool_call_parser_for_model "$model")}"
@@ -228,6 +229,9 @@ main() {
   effective_library_path="${library_path:-${LD_LIBRARY_PATH:-}}"
   if [[ -n "$effective_library_path" ]]; then
     env_assignments+=(LD_LIBRARY_PATH="$effective_library_path")
+  fi
+  if [[ -n "$backend_api_key" && "$backend_api_key" != "not-required" ]]; then
+    env_assignments+=(VLLM_API_KEY="$backend_api_key")
   fi
   env_assignments+=(
     PYTHONNOUSERSITE=1
