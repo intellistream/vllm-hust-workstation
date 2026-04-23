@@ -152,17 +152,17 @@ WORKSTATION_EVOSCI_MODEL=Qwen/Qwen2.5-7B-Instruct
 
 如需单独启动本地 vllm-hust OpenAI 服务，请在 vllm-hust 仓库中直接执行原生 `vllm-hust serve` 命令。
 
-## 🌐 挂到 A100 后台并呈现到 website
+## 🌐 挂到加速器后台并呈现到 website
 
-如果目标是“workstation 部署在 A100 机器上，然后在 `vllm-hust-website` 首页中展示”，推荐按下面的方式做：
+如果目标是“workstation 部署在一台加速器机器上，然后在 `vllm-hust-website` 首页中展示”，推荐按下面的方式做：
 
-1. 在 A100 主机上部署 `vllm-hust` OpenAI 兼容服务，例如 `http://A100_HOST:8080`
+1. 在目标主机上部署 `vllm-hust` OpenAI 兼容服务，例如 `http://ACCELERATOR_HOST:8080`
 2. 在同一台机器或同一内网可达机器上部署 `vllm-hust-workstation`
 3. 给 workstation 配置远端后端地址：
 
 ```dotenv
-VLLM_HUST_BASE_URL=https://A100_HOST:8080
-APP_BRAND_NAME=vLLM-HUST A100 Workstation
+VLLM_HUST_BASE_URL=https://ACCELERATOR_HOST:8080
+APP_BRAND_NAME=vLLM-HUST Accelerator Workstation
 APP_FRAME_ANCESTORS=https://intellistream.github.io https://your-website-domain
 ```
 
@@ -187,8 +187,8 @@ cat ~/.config/evoscientist/config.yaml
 ```bash
 WORKSTATION_EVOSCI_BIN=EvoSci
 # 可选：若 EvoSci 不在 PATH，或需切换到独立 Python 环境
-# WORKSTATION_EVOSCI_PYTHON_BIN=/home/shuhao/miniforge3/envs/EvoSci/bin/python
-WORKSTATION_EVOSCI_WORKDIR=/home/shuhao/EvoScientist
+# WORKSTATION_EVOSCI_PYTHON_BIN=/path/to/EvoSci/bin/python
+WORKSTATION_EVOSCI_WORKDIR=/path/to/EvoScientist
 WORKSTATION_EVOSCI_TIMEOUT_MS=180000
 ```
 
@@ -252,7 +252,7 @@ npm run start
 
 ### systemd --user 部署
 
-如果 A100 主机不能直接暴露公网入口，直接在主机本地用脚本安装和更新 `systemd --user` 常驻服务即可，不需要把 deployment 绑定到 GitHub Actions workflow。
+如果目标主机不能直接暴露公网入口，直接在主机本地用脚本安装和更新 `systemd --user` 常驻服务即可，不需要把 deployment 绑定到 GitHub Actions workflow。
 
 这套仓库内置了最小部署骨架：
 
@@ -360,9 +360,9 @@ cp .env.example .env
 运行时修复的单一入口：
 
 ```bash
-cd /home/shuhao/vllm-hust-dev-hub/ascend-runtime-manager
-PYTHONPATH=src python -m hust_ascend_manager.cli runtime check --repo /home/shuhao/vllm-hust
-PYTHONPATH=src python -m hust_ascend_manager.cli runtime repair --repo /home/shuhao/vllm-hust
+cd /path/to/vllm-hust-dev-hub/ascend-runtime-manager
+PYTHONPATH=src python -m hust_ascend_manager.cli runtime check --repo /path/to/vllm-hust
+PYTHONPATH=src python -m hust_ascend_manager.cli runtime repair --repo /path/to/vllm-hust
 ```
 
 `workstation` 自身不会再维护另一套手工 Python 修复步骤；当 quickstart / backend deploy 检测到 `vllm-hust` 运行时不完整时，会优先走这套 manager 流程。
@@ -371,8 +371,8 @@ PYTHONPATH=src python -m hust_ascend_manager.cli runtime repair --repo /home/shu
 
 - 本地 backend: `http://127.0.0.1:8080`
 - 本地 workstation: `http://127.0.0.1:3001`
-- 公网 workstation: `https://ws.sage.org.ai`
-- 公网 backend: `https://api.sage.org.ai`
+- 公网 workstation: `https://<your-workstation-domain>`
+- 公网 backend: `https://<your-api-domain>`
 
 可选环境变量：
 
@@ -381,7 +381,7 @@ PYTHONPATH=src python -m hust_ascend_manager.cli runtime repair --repo /home/shu
 WORKSTATION_BACKEND_SYSTEMD_SERVICE_NAME=vllm-hust-backend
 
 # website 仓库路径与 website 的 systemd --user 常驻服务名
-WORKSTATION_WEBSITE_REPO_DIR=/home/shuhao/vllm-hust-website
+WORKSTATION_WEBSITE_REPO_DIR=/path/to/vllm-hust-website
 WEBSITE_SYSTEMD_SERVICE_NAME=vllm-hust-website
 
 # website 本地检查地址
@@ -393,7 +393,7 @@ WORKSTATION_AUTO_REPAIR_BACKEND_RUNTIME=true
 
 ### 多模型 Fleet 自动部署
 
-如果你想在这台 A100 上同时挂多条 `vllm-hust serve` 实例，可以直接用仓库里的 fleet 清单：
+如果你想在这台机器上同时挂多条 `vllm-hust serve` 实例，可以直接用仓库里的 fleet 清单：
 
 - manifest: `deploy/model-fleet.json`
 - 本地部署脚本: `scripts/deploy_model_fleet.sh`
