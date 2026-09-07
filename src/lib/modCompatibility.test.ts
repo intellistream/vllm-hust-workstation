@@ -50,6 +50,19 @@ it("keeps LatchMoE available while marking dense Qwen not applicable", () => {
   expect(result.status).toBe("not-applicable");
 });
 
+it("maps Pipeline Microbatch to its PP2 by TP2 qualification instead of an external fallback", () => {
+  const current = runtime();
+  const production = assessTargetArtifactCompatibility("pipeline-microbatch", current, {
+    models: ["Qwen/Qwen3.8-27B"], tensorParallelSize: 4, pipelineParallelSize: 1, executionMode: "graph",
+  });
+  expect(production).toMatchObject({ status: "not-applicable", label: "当前模型不适用" });
+  expect(production.reason).toMatch(/PP2 × TP2.*当前部署拓扑/);
+  expect(production.reason).not.toMatch(/外部运维/);
+  expect(assessTargetArtifactCompatibility("pipeline-microbatch", current, {
+    models: ["Qwen/Qwen3.8-27B"], tensorParallelSize: 2, pipelineParallelSize: 2, executionMode: "graph",
+  }).status).toBe("compatible");
+});
+
 it("keeps artifacts outside exact qualified lanes unverified absent negative evidence", () => {
   expect(assessModCompatibility("bidkv", runtime("0.23.9", "0.25.1")).status).toBe("unverified");
   expect(assessModCompatibility("diffspec", runtime("0.28.1", "0.23.8")).status).toBe("unverified");

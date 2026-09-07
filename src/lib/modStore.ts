@@ -54,7 +54,8 @@ export async function getModCatalog(administrator: boolean): Promise<ModCatalogP
       }
     }
     const qualification = assessModCompatibility(mod.id, provenance);
-    return { ...mod, currentRuntimeState: state, stateError, currentRuntimeCompatibility: currentCompatibility(qualification, state.runtimeEffective) };
+    return { ...mod, currentRuntimeState: state, stateError: administrator ? stateError : undefined,
+      currentRuntimeCompatibility: currentCompatibility(qualification, state.runtimeEffective) };
   }));
   return { catalog, administrator, storageReady: Boolean(root), tasks: root && administrator ? (await tasks(root)).slice(0, 20) : [], runtime: { status: "unverified", message: "尚未绑定可管理的推理实例。制品准备和启用意图仅保存在 Mod 库；不代表当前共享服务已加载。正式应用须将 Manager 与插件装入 vLLM 的同一运行环境，并经过目标版本、资源与重启审批。" } };
 }

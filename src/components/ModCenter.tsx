@@ -154,7 +154,7 @@ export default function ModCenter() {
           {mod.availability.status === "preview" && <p className="app-text-muted mt-auto pt-5 text-xs leading-5">目录预览；功能、资源、失败恢复与回滚门禁通过前不开放操作。</p>}
           {mod.availability.status === "qualified-unpublished" && <p className="app-text-muted mt-auto pt-5 text-xs leading-5">功能资格已有固定证据，但集成尚未发布，当前不可准备或应用。</p>}
           {mod.kind === "external" && <p className="app-text-muted mt-auto pt-5 text-xs leading-5">{mod.actions.externalHealth ? "仅开放连接配置与健康检查。" : "连接配置与健康检查尚未接入；不会伪造连接成功。"}</p>}
-          {mod.stateError && <p role="alert" className="mt-3 text-sm" style={{ color: "var(--danger)" }}>{mod.stateError}</p>}
+          {administrator && mod.stateError && <p role="alert" className="mt-3 text-sm" style={{ color: "var(--danger)" }}>{mod.stateError}</p>}
           {administrator && mod.actions.prepare && mod.sha && <details className="mt-auto pt-5"><summary className="app-text-secondary cursor-pointer py-2 text-sm">制品与配置</summary><div className="pt-3">
             {mod.currentRuntimeState.installed && mod.actions.configure && <details className="mb-4 text-sm"><summary className="cursor-pointer app-text-secondary py-2">配置 · {mod.currentRuntimeState.configured ? "已保存" : "未配置"}</summary>
               <p className="app-text-muted my-2 text-xs leading-5">仅接受 launch_options。BidKV / LatchMoE 可先保存空对象；DiffSpec 需要 speculative_config.model。配置不代表宿主兼容。</p>
