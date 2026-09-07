@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { assessModCompatibility, currentCompatibility } from "./modCompatibility";
+import { assessModCompatibility, assessTargetArtifactCompatibility, currentCompatibility } from "./modCompatibility";
 import type { RuntimeProvenance } from "./runtimeProvenance";
 
 function runtime(coreVersion = "0.28.1rc1.dev319+g762f85b31", pluginVersion = "0.25.1rc1+hust.20260903"): RuntimeProvenance {
@@ -26,6 +26,28 @@ it("does not downgrade qualified BidKV because the live instance has not enabled
   const result = assessModCompatibility("bidkv", runtime());
   expect(result.status).toBe("compatible");
   expect(result.reason).toMatch(/功能验收.*安装、配置、启用与运行生效/);
+});
+
+it("separates first-deployment eligibility from current worker evidence", () => {
+  const current = runtime();
+  const target = { models: ["Qwen/Qwen3.8-27B"], tensorParallelSize: 4, pipelineParallelSize: 1, executionMode: "graph" as const };
+  expect(assessTargetArtifactCompatibility("bidkv", current, target).status).toBe("compatible");
+  expect(currentCompatibility(assessModCompatibility("bidkv", current), null).status).toBe("unknown");
+});
+
+it("requires the exact DiffSpec draft identity without blocking the catalog", () => {
+  const current = runtime();
+  const base = { models: ["Qwen3.8-27B"], tensorParallelSize: 4, pipelineParallelSize: 1, executionMode: "graph" as const };
+  expect(assessTargetArtifactCompatibility("diffspec", current, base).status).toBe("unknown");
+  const configuration = { launch_options: { speculative_config: { model: "VirVen/Qwen3.5-27B-EAGLE3-v2", model_sha256: "a57cefc45874197a24dd2a092cfd0d0f7d6a2f2cca156d09f2d2f4a56dc4e5be" } } };
+  expect(assessTargetArtifactCompatibility("diffspec", current, { ...base, configuration }).status).toBe("compatible");
+  expect(assessTargetArtifactCompatibility("diffspec", current, { ...base, configuration: { launch_options: { speculative_config: { model: "VirVen/Qwen3.5-27B-EAGLE3-v2", model_sha256: "a57cefc4" + "0".repeat(56) } } } }).status).toBe("unknown");
+});
+
+it("keeps LatchMoE available while marking dense Qwen not applicable", () => {
+  const current = runtime();
+  const result = assessTargetArtifactCompatibility("latchmoe", current, { models: ["Qwen/Qwen3.8-27B"], tensorParallelSize: 4, pipelineParallelSize: 1, executionMode: "graph" });
+  expect(result.status).toBe("not-applicable");
 });
 
 it("keeps artifacts outside exact qualified lanes unverified absent negative evidence", () => {

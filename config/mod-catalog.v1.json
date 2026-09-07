@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "source": "https://vllm-hust.sage.org.ai/plugins.html",
+  "manager": {
+    "repository": "https://github.com/vLLM-HUST/extension-manager",
+    "defaultBranch": "main",
+    "sourceSha": "cf1ea71e3e2cb81ab06267ef05eddb3e580ea20b"
+  },
+  "feed": {
+    "repository": "https://github.com/vLLM-HUST/vllm-hust-dev-hub",
+    "defaultBranch": "main",
+    "sourceSha": "5958941e68699ad11639a39ed9acf92a6b986982",
+    "path": "config/extension-catalog-v1.json",
+    "sha256": "16378bca427501bce0e861dedc3a83abb4f4f9cf3e3a5e4718103efc6ef9179f"
+  },
+  "entries": [
+    {
+      "id": "bidkv",
+      "name": "BidKV",
+      "kind": "runtime",
+      "description": "在 KV 压力下按效用选择抢占对象，面向突发并发和显存压力场景。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-hust-bidkv", "defaultBranch": "main", "sourceSha": "ba700cb69ed5c84f012e5103eb115aa22cdbc1f5" },
+      "deployment": { "sourceSha": "199e0bdc6fc38fc9b14b626515efdcbf81de0b62", "bundle": "org.vllm-hust.bidkv", "package": "bidkv" },
+      "managerManifest": { "path": ".vllm-hust/optimization.json", "status": "present" },
+      "availability": { "status": "available", "label": "可用", "reason": "固定候选已通过功能门禁；性能结论不限制选择。" },
+      "applicability": { "status": "applicable", "label": "当前模型适用", "scope": "Qwen3.8-27B · Ascend TP4 · FULL_DECODE_ONLY graph", "currentModelApplicable": true },
+      "functionalQualification": { "status": "passed", "label": "功能验收通过", "scope": "四 rank graph、输出、取消和恢复门禁通过", "evidence": "https://github.com/vLLM-HUST/vllm-hust-bidkv/blob/ba700cb69ed5c84f012e5103eb115aa22cdbc1f5/docs/evidence/sage-mate-20260905-current-main-tp4-graph-r2.md" },
+      "effectiveness": { "status": "not-beneficial-in-tested-cell", "label": "已测单元不具收益", "scope": "interactive · concurrency=8 · 1 GiB KV pressure · n=3", "detail": "吞吐 -25.31%，P95 延迟 +34.57%；ascending mixed 结果不确定。" },
+      "recommendation": { "status": "not-recommended-tested-cell", "label": "已测配置不推荐", "reason": "仅针对已测 interactive 单元；仍可在明确风险后准备和配置。" },
+      "categories": ["capacity", "latency"],
+      "scenarios": ["KV 压力下的有界抢占", "突发并发下比较不同抢占策略"],
+      "actions": { "prepare": true, "configure": true, "externalHealth": false }
+    },
+    {
+      "id": "diffspec",
+      "name": "DiffSpec",
+      "kind": "runtime",
+      "description": "使用 Eagle3 draft 的差分推测解码扩展，面向解码吞吐探索。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-ascend-hust-diffspec", "defaultBranch": "main", "sourceSha": "42e5909fc6fe276ba0defe1901257a523653aefb" },
+      "deployment": { "sourceSha": "c78f55c7e4923da342f2fc52c2cb509c150e5363", "bundle": "org.vllm-hust.diffspec", "package": "vllm-diffspec" },
+      "managerManifest": { "path": ".vllm-hust/optimization.json", "status": "present" },
+      "availability": { "status": "available", "label": "可用", "reason": "固定候选已通过功能门禁；需要精确 draft 模型与哈希。" },
+      "applicability": { "status": "requires-configuration", "label": "需匹配 Draft", "scope": "Qwen3.8-27B + VirVen/Qwen3.5-27B-EAGLE3-v2 · SHA256 a57cefc45874197a24dd2a092cfd0d0f7d6a2f2cca156d09f2d2f4a56dc4e5be", "currentModelApplicable": true },
+      "functionalQualification": { "status": "passed", "label": "功能验收通过", "scope": "Ascend TP4 FULL_DECODE_ONLY graph、并发、长上下文与恢复通过", "evidence": "https://github.com/vLLM-HUST/vllm-ascend-hust-diffspec/blob/c78f55c7e4923da342f2fc52c2cb509c150e5363/docs/evidence/sage-mate-20260904-checkpoint-gate.md" },
+      "effectiveness": { "status": "not-beneficial-in-tested-cell", "label": "已测单元不具收益", "scope": "已验证 Eagle3 配置", "detail": "接受率 19.29%；输出吞吐约 14.00 tok/s，对照约 47.72 tok/s。" },
+      "recommendation": { "status": "not-recommended-tested-cell", "label": "已测配置不推荐", "reason": "功能正确，但当前 draft 的接受率与吞吐不构成加速推荐。" },
+      "categories": ["latency", "throughput"],
+      "scenarios": ["匹配 Eagle3 draft 的推测解码实验", "长序列解码策略验证"],
+      "actions": { "prepare": true, "configure": true, "externalHealth": false }
+    },
+    {
+      "id": "latchmoe",
+      "name": "LatchMoE",
+      "kind": "runtime",
+      "description": "保持图地址稳定的 MoE 专家卸载扩展，用容量换取专家模型可运行性。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-ascend-hust-LatchMoE", "defaultBranch": "main", "sourceSha": "9b2d4acdbfbe6463a22dd0bb8e6ca5bfda47e2c1" },
+      "deployment": { "sourceSha": "63781f3dd0235f933735bfd8ce614d388093c0b5", "bundle": "org.vllm-hust.latchmoe", "package": "vllm-moe-offload-ascend" },
+      "managerManifest": { "path": ".vllm-hust/optimization.json", "status": "present" },
+      "availability": { "status": "available", "label": "可用", "reason": "MoE 候选已通过功能门禁；当前 dense 模型不可应用。" },
+      "applicability": { "status": "not-applicable", "label": "当前模型不适用", "scope": "Qwen3.8-27B 为 dense；已验收模型为 Qwen3-30B-A3B · Ascend TP4 PIECEWISE graph", "currentModelApplicable": false },
+      "functionalQualification": { "status": "passed", "label": "MoE 功能验收通过", "scope": "Qwen3-30B-A3B 的专家映射、换入换出、地址稳定、并发和恢复通过", "evidence": "https://github.com/vLLM-HUST/vllm-ascend-hust-LatchMoE/blob/9b2d4acdbfbe6463a22dd0bb8e6ca5bfda47e2c1/docs/evidence/sage-mate-20260904-tp4-graph.md" },
+      "effectiveness": { "status": "not-beneficial-in-tested-cell", "label": "已测单元不具收益", "scope": "Qwen3-30B-A3B 已测卸载配置", "detail": "输出吞吐约 2.91 tok/s，对照约 23.57 tok/s。" },
+      "recommendation": { "status": "not-recommended-tested-cell", "label": "已测配置不推荐", "reason": "容量受限且需运行 MoE 模型时才值得进一步评估。" },
+      "categories": ["capacity"],
+      "scenarios": ["显存不足时的 MoE 专家卸载", "MoE graph 地址稳定性验证"],
+      "actions": { "prepare": true, "configure": true, "externalHealth": false }
+    },
+    {
+      "id": "pegaflow",
+      "name": "PegaFlow",
+      "kind": "external",
+      "description": "独立 KV 存储、传输与元数据服务；Workstation 只管理连接信息。",
+      "source": { "repository": "https://github.com/vLLM-HUST/pegaflow-hust", "defaultBranch": "main", "sourceSha": "a3c574b8526969b70654715d86976474a4cc1b58" },
+      "deployment": null,
+      "managerManifest": { "path": "extension-provider/src/vllm_hust_pegaflow_provider/manifests/vllm-hust-extension-v0.2.json", "status": "present" },
+      "availability": { "status": "external", "label": "外部服务", "reason": "生命周期由外部服务运维方管理。" },
+      "applicability": { "status": "external", "label": "需外部端点", "scope": "配置连接参数后由服务端健康检查确认", "currentModelApplicable": null },
+      "functionalQualification": { "status": "external", "label": "外部管理", "scope": "Workstation 不安装、启停或删除其 KV 数据" },
+      "effectiveness": { "status": "unverified", "label": "工作站未验收", "scope": "连接可用性与性能须由部署方提供证据", "detail": "不承诺加速。" },
+      "recommendation": { "status": "scenario-dependent", "label": "按场景评估", "reason": "适合已有 PegaFlow 服务并需要远端 KV 能力的部署。" },
+      "categories": ["capacity", "observability"],
+      "scenarios": ["连接既有 PegaFlow KV 服务", "远端 KV 传输与元数据管理"],
+      "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "pipeline-microbatch",
+      "name": "Pipeline Microbatch",
+      "kind": "runtime",
+      "description": "面向流水线并行的 rank-local 成本预测与微批准入策略。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-hust-pipeline-microbatch", "defaultBranch": "main", "sourceSha": "a15a22961a0e4858da74a0ab806575c82cb254e6" },
+      "deployment": { "sourceSha": "a15a22961a0e4858da74a0ab806575c82cb254e6", "bundle": "org.vllm-hust.pipeline-microbatch", "package": "vllm-hust-pipeline-microbatch" },
+      "managerManifest": { "path": ".vllm-hust/optimization.json", "status": "present" },
+      "availability": { "status": "available", "label": "可准备", "reason": "组织目录与安装入口已发布；功能门禁通过，但已测性能退化。" },
+      "applicability": { "status": "not-applicable", "label": "当前部署不适用", "scope": "资格单元为 Qwen3.8-27B · Ascend PP2 × TP2 · FULL_DECODE_ONLY graph；当前 TP4/PP1 配置不能直接套用", "currentModelApplicable": false },
+      "functionalQualification": { "status": "passed", "label": "功能验收通过", "scope": "精确输出、取消/恢复与 runtime receipt 门禁通过", "evidence": "https://github.com/vLLM-HUST/vllm-hust-pipeline-microbatch/blob/a15a22961a0e4858da74a0ab806575c82cb254e6/docs/evidence/sage-mate-20260905-qwen38-pp2tp2-graph.md" },
+      "effectiveness": { "status": "not-beneficial-in-tested-cell", "label": "已测单元不具收益", "scope": "Qwen3.8 PP2 × TP2 · concurrency=8", "detail": "uniform 吞吐 -4.37%；mixed 吞吐 -26.33%，P95 延迟 +80.16%。" },
+      "recommendation": { "status": "not-recommended-tested-cell", "label": "已测配置不推荐", "reason": "需要新的 rank-local 校准；性能结论不撤销功能资格。" },
+      "categories": ["latency", "throughput"],
+      "scenarios": ["流水线并行微批调度研究", "按 rank 成本校准准入策略"],
+      "actions": { "prepare": true, "configure": true, "externalHealth": false }
+    },
+    {
+      "id": "adaptive-quantized-kv", "name": "Adaptive Quantized KV", "kind": "runtime", "description": "按运行条件自适应选择 KV 量化策略的 Ascend 扩展。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-ascend-adaptive-quantized-kv-hust", "defaultBranch": "main", "sourceSha": "ddd306fce8d885b9b9cfeb8c947ed576c5269e66" }, "deployment": null,
+      "managerManifest": { "path": "src/vllm_ascend_adaptive_quantized_kv/vllm-hust-extension-v0.2.json", "status": "present" },
+      "availability": { "status": "preview", "label": "预览", "reason": "尚无本工作站功能、资源、失败恢复与回滚门禁证据。" }, "applicability": { "status": "unknown", "label": "待核验", "scope": "需按模型、KV dtype 与 Ascend 运行栈验收", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "manifest 已发布，不等于目标实例通过" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "未提供本工作站对照数据", "detail": "不承诺容量或速度收益。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合研究自适应 KV 量化，暂不可执行。" }, "categories": ["capacity", "throughput"], "scenarios": ["KV 容量压力下探索动态量化"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "quantized-kv-cache", "name": "Quantized KV Cache", "kind": "runtime", "description": "INT8、KIVI INT4 与动态量化 KV cache 的 Ascend 扩展。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-ascend-quantized-kv-cache-hust", "defaultBranch": "main", "sourceSha": "8dd24cdce248519c173710993f6c633a96107c0d" }, "deployment": null,
+      "managerManifest": { "path": "src/vllm_ascend_quantized_kv_cache/vllm-hust-extension-v0.2.json", "status": "present" },
+      "availability": { "status": "preview", "label": "预览", "reason": "尚未通过目标 worker 的正确性与回滚门禁。" }, "applicability": { "status": "unknown", "label": "待核验", "scope": "需匹配模型、量化方法与算子支持", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "需验证精度、并发、取消和恢复" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "容量、吞吐和延迟均无当前实例对照", "detail": "不承诺节省比例。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合 KV 容量研究，暂不可执行。" }, "categories": ["capacity", "throughput"], "scenarios": ["长上下文 KV 容量压缩", "量化精度与性能权衡"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "kvcompress", "name": "KVCompress", "kind": "runtime", "description": "面向 Ascend 的 KV cache 压缩策略扩展。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-ascend-kvcompress-hust", "defaultBranch": "master", "sourceSha": "db18568aa8ce01c6d66d4e96b9357fdf766fdcde" }, "deployment": null,
+      "managerManifest": { "path": "src/vllm_ascend_kvcompress/manifests/vllm-hust-extension-v0.2.json", "status": "present" },
+      "availability": { "status": "preview", "label": "预览", "reason": "尚未通过当前模型的正确性和恢复门禁。" }, "applicability": { "status": "unknown", "label": "待核验", "scope": "需按模型和注意力后端核验", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "尚无当前工作站 evidence lock" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "未测容量/质量/延迟权衡", "detail": "不承诺压缩收益。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合 KV 压缩研究，暂不可执行。" }, "categories": ["capacity"], "scenarios": ["长上下文 KV 压缩研究"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "pyramidkv", "name": "PyramidKV", "kind": "runtime", "description": "按层保留重要 KV 的金字塔式 cache 压缩扩展。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-ascend-pyramidkv-hust", "defaultBranch": "main", "sourceSha": "77b0862c1e5be8c883fda934cdb383c57cf7ad0d" }, "deployment": null,
+      "managerManifest": { "path": "src/vllm_ascend_pyramidkv/vllm-hust-extension-v0.2.json", "status": "present" },
+      "availability": { "status": "preview", "label": "预览", "reason": "目标模型质量与 graph 兼容性尚未验收。" }, "applicability": { "status": "unknown", "label": "待核验", "scope": "需验证层级策略、模型结构和 Ascend graph", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "manifest 已发布，目标 worker 无见证" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "质量与容量对照缺失", "detail": "不承诺长上下文收益。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合注意力 KV 保留策略研究。" }, "categories": ["capacity"], "scenarios": ["长上下文分层 KV 保留"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "mapped-kv-offload", "name": "Mapped KV Offload", "kind": "runtime", "description": "使用映射内存管理主机与设备间 KV offload。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-ascend-mapped-kv-offload-hust", "defaultBranch": "main", "sourceSha": "8d4dc47063f164d5cb5859f35bf9d5087544648d" }, "deployment": null,
+      "managerManifest": { "path": "src/vllm_ascend_mapped_kv_offload_hust/vllm-hust-extension-v0.2.json", "status": "present" },
+      "availability": { "status": "preview", "label": "预览", "reason": "资源隔离、失败恢复与回滚尚未验收。" }, "applicability": { "status": "unknown", "label": "待核验", "scope": "需验证主机内存、NUMA 与 Ascend 映射能力", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "尚无当前拓扑 evidence lock" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "未测容量与传输开销", "detail": "不承诺可服务上下文增幅。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合显存受限场景探索。" }, "categories": ["capacity"], "scenarios": ["主机内存辅助 KV offload"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "kv-tiering", "name": "KV Tiering", "kind": "runtime", "description": "面向多层存储介质的 KV 分层策略实验仓。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-hust-kv-tiering", "defaultBranch": "main", "sourceSha": "3a73c7e1628801ea5d4f585bcc9d06260161a78c" }, "deployment": null,
+      "managerManifest": { "path": null, "status": "missing" },
+      "availability": { "status": "preview", "label": "预览", "reason": "缺少 Extension Manager manifest 与运行验收。" }, "applicability": { "status": "unknown", "label": "待定义", "scope": "目标介质、容量和一致性契约尚未登记", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "缺少机器可读 manager manifest" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "未测分层命中率与传输代价", "detail": "不承诺容量收益。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合分层 KV 研究，暂不可执行。" }, "categories": ["capacity"], "scenarios": ["多介质 KV 分层与迁移"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "kv-transfer-observability", "name": "KV Transfer Observability", "kind": "runtime", "description": "为 KV 传输、失败与恢复路径提供指标和追踪。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-hust-kv-transfer-observability", "defaultBranch": "main", "sourceSha": "70d1fdc05c7a56e29b452aa11ee00f701749cb94" }, "deployment": null,
+      "managerManifest": { "path": "src/vllm_hust_kv_transfer_observability/vllm-hust-extension-v0.2.json", "status": "present" },
+      "availability": { "status": "preview", "label": "预览", "reason": "观测契约已登记，当前实例接入和开销验收未完成。" }, "applicability": { "status": "unknown", "label": "待接入", "scope": "需要存在 KV transfer 路径与可验证 exporter", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "需验证指标完整性、基数与恢复语义" }, "effectiveness": { "status": "not-applicable", "label": "不以加速为目标", "scope": "价值在故障定位和恢复可见性", "detail": "需单独评估观测开销。" }, "recommendation": { "status": "scenario-dependent", "label": "观测场景候选", "reason": "适合存在远端或跨 worker KV 传输的环境。" }, "categories": ["observability"], "scenarios": ["KV 传输故障定位", "恢复过程与延迟观测"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "clm-lifecycle", "name": "CLM Lifecycle", "kind": "runtime", "description": "管理 cache/language-model 相关资源生命周期的实验仓。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-hust-clm-lifecycle", "defaultBranch": "main", "sourceSha": "7657592806b76d8436458c9ac06a292a5e76e048" }, "deployment": null,
+      "managerManifest": { "path": null, "status": "missing" },
+      "availability": { "status": "preview", "label": "预览", "reason": "缺少 Extension Manager manifest 与生命周期验收。" }, "applicability": { "status": "unknown", "label": "待定义", "scope": "目标资源与 owner fencing 契约尚未登记", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "缺少可执行 manifest 和恢复证据" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "未测资源回收与请求影响", "detail": "不承诺资源收益。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合生命周期协议研究，暂不可执行。" }, "categories": ["capacity", "observability"], "scenarios": ["缓存与模型资源生命周期管理"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "qos-scheduler", "name": "QoS Scheduler", "kind": "runtime", "description": "按服务等级与请求优先级实施调度策略。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-hust-qos-scheduler", "defaultBranch": "main", "sourceSha": "13d376a7d8990c4dcf5c0903cb6fbf2398ef0fb0" }, "deployment": null,
+      "managerManifest": { "path": "src/vllm_hust_qos_scheduler/vllm-hust-extension-v0.2.json", "status": "present" },
+      "availability": { "status": "preview", "label": "预览", "reason": "公平性、饥饿保护和恢复门禁尚未验收。" }, "applicability": { "status": "unknown", "label": "待核验", "scope": "需匹配 scheduler host contract 和业务等级定义", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "需验证并发、公平性、取消与回滚" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "未测各优先级 SLO 影响", "detail": "不承诺整体吞吐提升。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合多租户 QoS 策略验证。" }, "categories": ["latency", "throughput"], "scenarios": ["多租户优先级与 SLO 隔离"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "scheduler-policy-lab", "name": "Scheduler Policy Lab", "kind": "runtime", "description": "用于开发、对照和观测调度策略的实验扩展。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-hust-scheduler-policy-lab", "defaultBranch": "main", "sourceSha": "215bdab44fb572f125e1426f78103e4d4ac7b833" }, "deployment": null,
+      "managerManifest": { "path": "src/vllm_hust_scheduler_policy_lab/vllm-hust-extension-v0.2.json", "status": "present" },
+      "availability": { "status": "preview", "label": "预览", "reason": "实验策略尚未逐项通过生产隔离门禁。" }, "applicability": { "status": "unknown", "label": "待核验", "scope": "需匹配 scheduler policy host contract", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "每个策略需独立正确性和恢复证据" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "效果取决于具体策略与 workload", "detail": "不承诺通用收益。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合受控 canary 中对照调度策略。" }, "categories": ["latency", "throughput", "observability"], "scenarios": ["调度策略 A/B 与行为观测"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "prefix-router", "name": "Prefix Router", "kind": "runtime", "description": "按 prompt 前缀亲和性路由请求以探索 cache 命中。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-hust-prefix-router", "defaultBranch": "main", "sourceSha": "4e007c4fc1bd376a6dccfefbc1fd851019c8ceb6" }, "deployment": null,
+      "managerManifest": { "path": null, "status": "missing" },
+      "availability": { "status": "preview", "label": "预览", "reason": "缺少 Extension Manager manifest 和路由恢复门禁。" }, "applicability": { "status": "unknown", "label": "待定义", "scope": "需多实例、prefix cache 和 owner 路由契约", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "缺少一致性、失败转移与回滚证据" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "未测命中率与负载倾斜", "detail": "不承诺命中率提升。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合多副本 prefix-affinity 研究。" }, "categories": ["latency", "throughput"], "scenarios": ["共享前缀 workload 的多实例路由"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "simllm", "name": "SimLLM", "kind": "runtime", "description": "为 Ascend 推理路径提供可控模拟和策略实验能力。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-ascend-simllm-hust", "defaultBranch": "main", "sourceSha": "dcdc6edf7bdcc68bdf35058888ebfd9752ae3566" }, "deployment": null,
+      "managerManifest": { "path": "src/vllm_ascend_simllm/vllm-hust-extension-v0.2.json", "status": "present" },
+      "availability": { "status": "preview", "label": "预览", "reason": "模拟结果不能替代真实 worker 验收。" }, "applicability": { "status": "unknown", "label": "实验用途", "scope": "需明确模拟边界和真实部署差异", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "尚无当前工作站隔离测试" }, "effectiveness": { "status": "not-applicable", "label": "不以生产加速为目标", "scope": "模拟用于方案筛选而非运行收益证明", "detail": "模拟数据不得标为实测。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合前期策略探索。" }, "categories": ["observability"], "scenarios": ["运行策略模拟与方案筛选"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "slicegpt", "name": "SliceGPT", "kind": "runtime", "description": "通过模型切片压缩探索更小的运行制品。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-hust-slicegpt", "defaultBranch": "main", "sourceSha": "6acf19d9cbb3ed6caa3f5e6341b1da41941f9f2e" }, "deployment": null,
+      "managerManifest": { "path": null, "status": "missing" },
+      "availability": { "status": "preview", "label": "预览", "reason": "缺少 Extension Manager manifest 与对应压缩模型资产。" }, "applicability": { "status": "unknown", "label": "需专用模型制品", "scope": "不能用原始权重替代 SliceGPT 压缩资产", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "模型质量、加载与恢复门禁未完成" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "需同时报告质量、容量和性能", "detail": "不承诺压缩率或吞吐。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合具备匹配压缩模型资产后的评估。" }, "categories": ["capacity", "throughput"], "scenarios": ["模型压缩后的容量/质量/性能权衡"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    },
+    {
+      "id": "knorm", "name": "KNorm", "kind": "runtime", "description": "围绕归一化与 KV 压缩交互开展算子和长上下文实验。",
+      "source": { "repository": "https://github.com/vLLM-HUST/vllm-hust-knorm", "defaultBranch": "main", "sourceSha": "e0e872abfc9fa88659b3e83c1c8b8b2b3de88fc0" }, "deployment": null,
+      "managerManifest": { "path": null, "status": "missing" },
+      "availability": { "status": "preview", "label": "预览", "reason": "缺少 Extension Manager manifest、算子门禁和恢复证据。" }, "applicability": { "status": "unknown", "label": "待定义", "scope": "需匹配模型归一化结构、算子和 KV 路径", "currentModelApplicable": null }, "functionalQualification": { "status": "unverified", "label": "功能待验收", "scope": "缺少当前工作站的正确性 evidence lock" }, "effectiveness": { "status": "unverified", "label": "收益待验证", "scope": "未测质量、长上下文和性能影响", "detail": "不承诺加速。" }, "recommendation": { "status": "experimental", "label": "实验预览", "reason": "适合受控算子研究，暂不可执行。" }, "categories": ["latency", "throughput"], "scenarios": ["归一化与 KV 压缩交互研究"], "actions": { "prepare": false, "configure": false, "externalHealth": false }
+    }
+  ]
+}

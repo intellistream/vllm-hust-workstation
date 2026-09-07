@@ -5,7 +5,14 @@ over the existing shared inference service. Public access is read-only.
 
 ## Delivered operations
 
-- Curated official catalog; full reviewed Git commits in `src/lib/modCatalog.ts`.
+- A Workstation UI projection of the generated 19-entry organization feed at
+  `vllm-hust-dev-hub/config/extension-catalog-v1.json`. The projection pins the
+  dev-hub commit and feed SHA256, then tests every ID, repository, source commit,
+  availability decision and immutable installation commit against that feed.
+- The organization feed itself is parsed by the published Extension Manager
+  catalog validator at the exact Manager commit recorded in
+  `config/mod-catalog.v1.json`. Workstation's TypeScript parser validates its UI
+  projection only; it is not presented as the Extension Manager validator.
 - Prepare each extension and pinned Extension Manager in an isolated artifact-validation venv, using
   GitHub codeload archives addressed by full commit SHA (not Git branch tips).
   Build only the reviewed sources; record resulting wheel SHA256 values. Build
@@ -75,6 +82,21 @@ loading evidence and an observed rollback. Current shared Sage Mate/statecentric
 instances are explicitly outside this feature's mutation scope. External KV
 services remain separately operated. Multi-Mod composition needs provider/domain
 conflict checks; separate library venvs are not a combination compatibility claim.
+
+## Isolated lifecycle canary
+
+When the host operator separately enables the fixed `inert-canary` broker policy,
+administrators can run start, stop, restart and retained-baseline rollback from the
+Mod Center after a second password confirmation. This is a real CPU Python process
+with AF_UNIX health, PID/start-ticks identity, controller plan/approval,
+generation/CAS/fencing and one-use launch grants. It has no model, TCP listener,
+container, service target or accelerator access and always reports Mod
+`effective=false`.
+
+The canary proves only the broker and UI control path. Its availability is never
+projected onto the shared Qwen instance: production apply, disable and rollback
+remain hidden and return 409 until that exact instance has an enrolled qualified
+backend, owner fencing, rollback baseline and worker execution evidence.
 
 Manager configure accepts only `launch_options` here, not caller-supplied
 compatibility or health assertions. DiffSpec needs

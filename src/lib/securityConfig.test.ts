@@ -57,6 +57,16 @@ describe("shared backend safety", () => {
     expect(runtime).toContain("load_workstation_admin_token");
   });
 
+  it("publishes immutable Workstation releases through an atomic link with health rollback", () => {
+    const deploy = fs.readFileSync(path.join(process.cwd(), "scripts/deploy_workstation.sh"), "utf8");
+    expect(deploy).toContain("releases_dir()");
+    expect(deploy).toContain("activate_runtime()");
+    expect(deploy).toContain('mv -Tf "$next_link" "$active_link"');
+    expect(deploy).toContain("workstation release failed health checks; rolling back");
+    expect(deploy).toContain('curl -fsS --max-time 3 "$base/api/mod-runtime"');
+    expect(deploy).not.toContain('rm -rf "$target_dir"');
+  });
+
   it("never caches live model or upstream availability state", () => {
     const route = fs.readFileSync(
       path.join(process.cwd(), "src/app/api/models/route.ts"),

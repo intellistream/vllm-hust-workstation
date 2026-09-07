@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     if (raw.length > 1024) return Response.json({ error: "请求过大。" }, { status: 413, headers });
     const body = JSON.parse(raw);
     if (!body || Object.keys(body).sort().join() !== "action,confirmation,modId,targetId" ||
-        !["start", "stop"].includes(body.action) || body.targetId !== "inert-canary" ||
+        !["start", "stop", "restart", "rollback"].includes(body.action) || body.targetId !== "inert-canary" ||
         body.modId !== "lifecycle-self-test" || typeof body.confirmation !== "string") {
       return Response.json({ error: "仅允许固定生命周期自检目标。" }, { status: 400, headers });
     }

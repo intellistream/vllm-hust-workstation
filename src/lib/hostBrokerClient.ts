@@ -73,7 +73,9 @@ export async function describeCanaryTarget(): Promise<CanaryLifecycleStatus> {
   catch { return { available: false, registered: false, state: "unavailable", healthy: false, effective: false }; }
 }
 
-export async function runCanaryLifecycle(action: "start" | "stop"): Promise<CanaryLifecycleStatus> {
+export type CanaryLifecycleAction = "start" | "stop" | "restart" | "rollback";
+
+export async function runCanaryLifecycle(action: CanaryLifecycleAction): Promise<CanaryLifecycleStatus> {
   const value = await brokerRequest({ schema: PROTOCOL, action: "canary_lifecycle", instance_id: "inert-canary", lifecycle_action: action });
   if (value.phase !== "committed" || value.replayRejected !== true || typeof value.operationId !== "string" || !/^[a-f0-9]{32}$/.test(value.operationId)) throw new Error("canary operation not committed");
   return projectCanary(value);

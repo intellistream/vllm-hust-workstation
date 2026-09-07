@@ -213,8 +213,18 @@ operator-owned directory for task journals and derived image contexts. The
 existing `WORKSTATION_MOD_DIR` remains the artifact library. This enrollment
 permits observation/preparation only, **not serving lifecycle control**.
 
+`WORKSTATION_DEPLOYMENT_RECEIPT_FILE` is optional and deliberately separate
+from the exact-key v1 target registration, so an older service can safely ignore
+it during an atomic release transition. When present, it must name a trusted
+deployment-receipt index whose active model, Core/Ascend commits, graph mode and
+TP/device topology match the live provenance. It supports candidate artifact
+eligibility; it is not the complete dev-hub `DeploymentSpec`, rollback authority,
+or proof that a Mod is currently effective.
+
 Authenticated `POST /api/mod-runtime` accepts exactly
-`{"action":"prepare","targetId":"...","modId":"..."}`. Source pins, interpreter,
+`{"action":"prepare","targetId":"...","modId":"...","riskAcknowledged":true}`.
+The acknowledgement is required because every currently qualified candidate has
+a negative measured performance cell; it authorizes preparation only. Source pins, interpreter,
 container and paths come from reviewed server data, never browser launch fields.
 The durable worker:
 

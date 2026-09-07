@@ -109,6 +109,14 @@ runtime_dir() {
     printf '%s\n' "$WORKSTATION_DEPLOY_RUNTIME_DIR"
     return 0
   fi
+  printf '%s/current\n' "$(deploy_home)"
+}
+
+releases_dir() {
+  printf '%s/releases\n' "$(deploy_home)"
+}
+
+legacy_runtime_dir() {
   printf '%s/runtime\n' "$(deploy_home)"
 }
 
@@ -169,18 +177,61 @@ capture_runtime_provenance() {
 }
 
 stage_runtime() {
-  local target_dir
-  target_dir="$(runtime_dir)"
+  local release_id staging_dir target_dir
+  release_id="$(git -C "$REPO_DIR" rev-parse --verify HEAD)-$(date -u +%Y%m%dT%H%M%SZ)"
+  staging_dir="$(releases_dir)/.${release_id}.tmp"
+  target_dir="$(releases_dir)/${release_id}"
 
-  mkdir -p "$(deploy_home)"
-  rm -rf "$target_dir"
-  mkdir -p "$target_dir/.next"
-
-  cp -R "$REPO_DIR/.next/standalone/." "$target_dir/"
-  cp -R "$REPO_DIR/.next/static" "$target_dir/.next/static"
-  if [[ -d "$REPO_DIR/public" ]]; then
-    cp -R "$REPO_DIR/public" "$target_dir/public"
+  mkdir -p "$(releases_dir)"
+  if [[ -e "$staging_dir" || -e "$target_dir" ]]; then
+    echo "Refusing to overwrite an existing release: $release_id" >&2
+    return 1
   fi
+  mkdir -p "$staging_dir/.next"
+
+  cp -R "$REPO_DIR/.next/standalone/." "$staging_dir/"
+  cp -R "$REPO_DIR/.next/static" "$staging_dir/.next/static"
+  if [[ -d "$REPO_DIR/public" ]]; then
+    cp -R "$REPO_DIR/public" "$staging_dir/public"
+  fi
+  mv "$staging_dir" "$target_dir"
+  printf '%s\n' "$target_dir"
+}
+
+activate_runtime() {
+  local target_dir="$1"
+  local active_link next_link
+  active_link="$(runtime_dir)"
+  next_link="${active_link}.next.$$"
+  if [[ ! -f "$target_dir/server.js" || ! -d "$target_dir/.next/static" ]]; then
+    echo "Refusing to activate incomplete release: $target_dir" >&2
+    return 1
+  fi
+  if [[ -e "$active_link" && ! -L "$active_link" ]]; then
+    echo "Atomic runtime path must be a symlink or absent: $active_link" >&2
+    return 1
+  fi
+  ln -s "$target_dir" "$next_link"
+  mv -Tf "$next_link" "$active_link"
+}
+
+service_healthy() {
+  local base mods_count
+  base="http://127.0.0.1:${APP_PORT:-3000}"
+  curl -fsS --max-time 3 "$base/api/mod-runtime" >/dev/null || return 1
+  mods_count="$(curl -fsS --max-time 3 "$base/api/mods" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const v=JSON.parse(s);process.stdout.write(String(Array.isArray(v.catalog)?v.catalog.length:-1))}catch{process.stdout.write("-1")}})')"
+  [[ "$mods_count" == "19" ]]
+}
+
+wait_for_service_health() {
+  local attempt
+  for attempt in $(seq 1 20); do
+    if systemctl --user --quiet is-active "$(service_name).service" && service_healthy; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  return 1
 }
 
 write_systemd_env() {
@@ -193,6 +244,7 @@ write_systemd_env() {
   fi
 
   mkdir -p "$(deploy_home)"
+  umask 077
   cat > "$(systemd_env_file)" <<EOF
 WORKSTATION_NODE_BIN=$node_bin
 WORKSTATION_DEPLOY_RUNTIME_DIR=$(runtime_dir)
@@ -221,6 +273,7 @@ logs_service() {
 }
 
 build_runtime() {
+  local staged_runtime
   load_env_file
   capture_runtime_provenance
   ensure_node_runtime || true
@@ -229,16 +282,19 @@ build_runtime() {
   npm_install
   npm run lint
   build_app
-  stage_runtime
+  staged_runtime="$(stage_runtime)"
   write_systemd_env
+  echo "[build] staged immutable release: $staged_runtime"
 }
 
 ci_deploy() {
+  local staged_runtime previous_runtime active_link
   load_env_file
   capture_runtime_provenance
   ensure_node_runtime || true
   require_command node
   require_command npm
+  require_command curl
   require_command systemctl
   ensure_systemd_user
   npm_install
@@ -247,19 +303,30 @@ ci_deploy() {
   if [[ -n "${WORKSTATION_RUNTIME_CONTAINER:-}" ]]; then
     bash "$SCRIPT_DIR/install_runtime_provenance_timer.sh"
   fi
-  stage_runtime
+  staged_runtime="$(stage_runtime)"
   write_systemd_env
   install_service_unit
+  active_link="$(runtime_dir)"
+  previous_runtime="$(readlink -f "$active_link" 2>/dev/null || true)"
+  if [[ -z "$previous_runtime" && -f "$(legacy_runtime_dir)/server.js" ]]; then
+    previous_runtime="$(legacy_runtime_dir)"
+  fi
+  activate_runtime "$staged_runtime"
   restart_service
-  sleep 2
 
-  if ! systemctl --user --quiet is-active "$(service_name).service"; then
-    echo "systemd service failed to become active" >&2
+  if ! wait_for_service_health; then
+    echo "workstation release failed health checks; rolling back" >&2
+    if [[ -n "$previous_runtime" && -f "$previous_runtime/server.js" ]]; then
+      activate_runtime "$previous_runtime"
+      restart_service
+      wait_for_service_health || true
+    fi
     logs_service 120 || true
     exit 1
   fi
 
-  echo "[deploy] workstation service is active: $(service_name).service"
+  echo "[deploy] workstation service is healthy: $(service_name).service"
+  echo "[deploy] active immutable release: $staged_runtime"
 }
 
 MODE="${1:-ci-deploy}"

@@ -17,13 +17,12 @@ export default function ModRuntimePanel({ token, onAuthorizationExpired, onLibra
   const [pending, setPending] = useState(false);
   const [modId, setModId] = useState("diffspec");
   const [confirmation, setConfirmation] = useState(false);
-  const [lifecycleAction, setLifecycleAction] = useState<"start" | "stop" | "restart" | null>(null);
-  const [secondPassword, setSecondPassword] = useState("");
+  const [riskAcknowledged, setRiskAcknowledged] = useState(false);
   const epoch = useRef(0);
   const invalidate = useCallback(() => { ++epoch.current; }, []);
   const completed = useRef(new Set<string>());
-  const closeConfirmation = useCallback(() => { if (!pending) { setConfirmation(false); setLifecycleAction(null); setSecondPassword(""); } }, [pending]);
-  const dialogRef = useDialogFocus(confirmation || Boolean(lifecycleAction), closeConfirmation);
+  const closeConfirmation = useCallback(() => { if (!pending) { setConfirmation(false); setRiskAcknowledged(false); } }, [pending]);
+  const dialogRef = useDialogFocus(confirmation, closeConfirmation);
   const load = useCallback(async () => {
     const current = ++epoch.current;
     setLoading(true);
@@ -41,7 +40,7 @@ export default function ModRuntimePanel({ token, onAuthorizationExpired, onLibra
     } finally { if (current === epoch.current) setLoading(false); }
   }, [token, onAuthorizationExpired, onLibraryChanged]);
   useEffect(() => {
-    setData(null); setConfirmation(false); setLifecycleAction(null); setSecondPassword("");
+    setData(null); setConfirmation(false); setRiskAcknowledged(false);
     void load();
     return invalidate;
   }, [load, invalidate]);
@@ -55,35 +54,20 @@ export default function ModRuntimePanel({ token, onAuthorizationExpired, onLibra
   const administrator = Boolean(token && data?.administrator);
   const target = data?.target;
   const canPrepare = Boolean(administrator && target && data?.preparationAvailable && !busy && !recoveryRequired && !pending && !loading);
-  const compatibility = data?.mods?.find(item => item.id === modId)?.currentRuntimeCompatibility || "unknown";
-  const canLifecycle = Boolean(administrator && target && data?.applicationAvailable && compatibility === "compatible" && data.lifecycle.identityLive && data.lifecycle.instanceRegistered && data.lifecycle.rollbackReady && data.lifecycle.oneUseAuthorization && !pending && !loading);
+  const candidateCompatibility = data?.mods?.find(item => item.id === modId)?.targetArtifactCompatibility?.status || "unknown";
   const mod = MOD_CATALOG.find(item => item.id === modId)!;
   const prepare = async () => {
-    if (!canPrepare || !target) return;
+    if (!canPrepare || !target || !riskAcknowledged) return;
     const current = epoch.current;
     setPending(true); setError("");
     try {
-      const response = await fetch("/api/mod-runtime", { method: "POST", headers: { "Content-Type": "application/json", "X-Workstation-Admin-Token": token }, body: JSON.stringify({ action: "prepare", targetId: target.id, modId }) });
+      const response = await fetch("/api/mod-runtime", { method: "POST", headers: { "Content-Type": "application/json", "X-Workstation-Admin-Token": token }, body: JSON.stringify({ action: "prepare", targetId: target.id, modId, riskAcknowledged: true }) });
       const body = await response.json();
       if (current !== epoch.current) return;
       if (response.status === 401) { onAuthorizationExpired(); throw new Error("管理员权限已失效，请重新登录。"); }
       if (!response.ok) throw new Error(body.error || "准备任务未提交。");
       setConfirmation(false); await load();
     } catch (err) { if (current === epoch.current) setError(err instanceof Error ? err.message : "准备任务未提交。"); }
-    finally { setPending(false); }
-  };
-  const runLifecycle = async () => {
-    if (!canLifecycle || !target || !lifecycleAction || !secondPassword.trim()) return;
-    const current = epoch.current;
-    setPending(true); setError("");
-    try {
-      const response = await fetch("/api/mod-runtime", { method: "POST", headers: { "Content-Type": "application/json", "X-Workstation-Admin-Token": token }, body: JSON.stringify({ action: lifecycleAction, targetId: target.id, modId, confirmation: secondPassword.trim() }) });
-      const body = await response.json();
-      if (current !== epoch.current) return;
-      if (response.status === 401) { onAuthorizationExpired(); throw new Error("管理员二次确认失败，请重新登录。"); }
-      if (!response.ok) throw new Error(body.error || "运行操作未提交。");
-      setLifecycleAction(null); setSecondPassword(""); await load();
-    } catch (err) { if (current === epoch.current) setError(err instanceof Error ? err.message : "运行操作未提交。"); }
     finally { setPending(false); }
   };
   return <section aria-label="推理实例" className="app-surface rounded-2xl border app-border p-5 sm:p-6">
@@ -110,11 +94,9 @@ export default function ModRuntimePanel({ token, onAuthorizationExpired, onLibra
           <button type="button" className="app-control rounded-lg border px-4 py-2 text-sm" disabled={!canPrepare} onClick={() => setConfirmation(true)}>{recoveryRequired ? "中断任务待核查" : busy ? "准备任务执行中" : "准备运行镜像"}</button>
         </div>
         <div className="mt-4 rounded-xl app-surface-muted p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium">服务生命周期</p><p className="app-text-muted mt-1 text-xs">{data.lifecycle.reason}</p></div><span className="app-text-secondary text-xs">{compatibility === "compatible" ? "兼容" : compatibility === "incompatible" ? "不兼容" : "待核验"}</span></div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {(["start", "stop", "restart"] as const).map(action => <button key={action} type="button" className="app-control min-h-10 rounded-lg border px-2 py-2 text-sm" disabled={!canLifecycle} onClick={() => setLifecycleAction(action)}>{action === "start" ? "启动" : action === "stop" ? "停止" : "重启"}</button>)}
-          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-sm font-medium">运行接管</p><p className="app-text-muted mt-1 text-xs">{data.lifecycle.reason}</p></div><span className="app-text-secondary text-xs">候选资格：{candidateCompatibility === "compatible" ? "可部署" : candidateCompatibility === "incompatible" ? "不兼容" : candidateCompatibility === "not-applicable" ? "不适用" : "待核验"}</span></div>
           <dl className="app-text-muted mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4"><div><dt>实例身份</dt><dd>{data.lifecycle.identityLive ? "live" : "待核验"}</dd></div><div><dt>Owner 登记</dt><dd>{data.lifecycle.instanceRegistered ? "已登记" : "未登记"}</dd></div><div><dt>回滚基线</dt><dd>{data.lifecycle.rollbackReady ? "就绪" : "待核验"}</dd></div><div><dt>一次性授权</dt><dd>{data.lifecycle.oneUseAuthorization ? "就绪" : "未签发"}</dd></div></dl>
+          {!data.applicationAvailable && <p className="app-text-muted mt-3 text-xs leading-5">当前只开放候选镜像准备；接管协议未完整验收前不显示应用、停用或回滚按钮。</p>}
         </div>
         <p className="app-text-muted mt-3 text-xs leading-5">{data.message}</p>
       </div>}
@@ -126,18 +108,12 @@ export default function ModRuntimePanel({ token, onAuthorizationExpired, onLibra
       {administrator && <ModCanaryPanel token={token} onAuthorizationExpired={onAuthorizationExpired} />}
     </>}
     {confirmation && administrator && target && <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "var(--overlay)" }}>
-      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="准备运行镜像确认" tabIndex={-1} className="app-surface-raised w-full max-w-lg rounded-xl border app-border p-5">
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="准备运行镜像确认" tabIndex={-1} className="app-surface-raised max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl border app-border p-5">
         <h2 className="font-medium">准备 {mod.name} · {target.label}</h2>
         <p className="app-text-secondary mt-3 text-sm leading-6">获取固定版本制品，并基于此实例的镜像构建运行环境。可能占用数 GiB 磁盘；不会切换模型或重启实例。</p>
-        <div className="mt-4 flex gap-3"><button type="button" className="app-control rounded-lg border px-4 py-2 text-sm" disabled={!canPrepare} onClick={() => void prepare()}>{pending ? "提交中…" : "确认准备"}</button><button type="button" className="app-control rounded-lg border px-4 py-2 text-sm" disabled={pending} onClick={closeConfirmation}>取消</button></div>
-      </section>
-    </div>}
-    {lifecycleAction && administrator && target && <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "var(--overlay)" }}>
-      <section ref={dialogRef} role="dialog" aria-modal="true" aria-label="服务生命周期确认" tabIndex={-1} className="app-surface-raised w-full max-w-lg rounded-xl border app-border p-5">
-        <h2 className="font-medium">确认{lifecycleAction === "start" ? "启动" : lifecycleAction === "stop" ? "停止" : "重启"} · {target.label}</h2>
-        <p className="app-text-secondary mt-3 text-sm leading-6">本次确认只对应当前计划与实例 generation；授权使用一次后即失效。</p>
-        <label className="app-text-secondary mt-4 block text-sm">再次输入管理员密码<input type="password" autoComplete="off" value={secondPassword} onChange={event => setSecondPassword(event.target.value)} className="app-control mt-2 block w-full rounded-lg border px-3 py-2" /></label>
-        <div className="mt-4 flex gap-3"><button type="button" className="app-control rounded-lg border px-4 py-2 text-sm" disabled={!canLifecycle || !secondPassword.trim()} onClick={() => void runLifecycle()}>{pending ? "提交中…" : "确认运行操作"}</button><button type="button" className="app-control rounded-lg border px-4 py-2 text-sm" disabled={pending} onClick={closeConfirmation}>取消</button></div>
+        <p className="mt-3 rounded-lg border p-3 text-sm leading-6 text-amber-300" style={{ borderColor: "var(--warning)" }}>已测性能风险：{mod.effectiveness.detail}</p>
+        <label className="app-text-secondary mt-4 flex items-start gap-3 text-sm leading-5"><input type="checkbox" className="mt-1 h-4 w-4 shrink-0" checked={riskAcknowledged} onChange={event => setRiskAcknowledged(event.target.checked)} />我理解该测试单元性能退化，且准备镜像不代表生产应用。</label>
+        <div className="mt-4 flex flex-wrap gap-3"><button type="button" className="app-control w-full rounded-lg border px-4 py-2 text-sm sm:w-auto" disabled={!canPrepare || !riskAcknowledged} onClick={() => void prepare()}>{pending ? "提交中…" : "确认准备"}</button><button type="button" className="app-control w-full rounded-lg border px-4 py-2 text-sm sm:w-auto" disabled={pending} onClick={closeConfirmation}>取消</button></div>
       </section>
     </div>}
   </section>;
