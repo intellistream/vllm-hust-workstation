@@ -9,6 +9,11 @@ import ModelHubModal from "@/components/ModelHubModal";
 import AgentLabModal from "@/components/AgentLabModal";
 import type { AppConfig, Message, MetricsSnapshot, SearchResult, ServiceProbeStatus } from "@/types";
 import type { RuntimeProvenance } from "@/lib/runtimeProvenance";
+import {
+  ChatStreamAccumulator,
+  STOPPED_ASSISTANT_RESPONSE,
+  parseChatSseLine,
+} from "@/lib/chatStream";
 
 const METRICS_INTERVAL = 3000;
 const HISTORY_MAX = 60;
@@ -29,21 +34,6 @@ function shortSha(value?: string): string {
 
 function shortDigest(value?: string): string {
   return value ? `${value.slice(0, 18)}…` : "unavailable";
-}
-
-function parseThinkContent(raw: string): { think: string; main: string } {
-  const open = raw.indexOf("<think>");
-  if (open === -1) {
-    return { think: "", main: raw };
-  }
-  const close = raw.indexOf("</think>", open);
-  if (close === -1) {
-    return { think: raw.slice(open + 7), main: raw.slice(0, open) };
-  }
-  return {
-    think: raw.slice(open + 7, close),
-    main: raw.slice(0, open) + raw.slice(close + 8),
-  };
 }
 
 function createSteps(params: {
@@ -295,8 +285,7 @@ export default function WorkstationClient({ config }: { config: AppConfig }) {
       const assistantId = crypto.randomUUID();
       const startTs = Date.now();
       let fullContent = "";
-      let rawContent = "";
-      let streamThink = "";
+      const chatStream = new ChatStreamAccumulator();
       let firstToken = true;
       let firstTokenTs = 0;
       let resultCount: number | undefined;
@@ -372,12 +361,11 @@ export default function WorkstationClient({ config }: { config: AppConfig }) {
           sseBuffer = lines.pop() ?? "";
 
           for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") continue;
+            const event = parseChatSseLine(line);
+            if (event.kind !== "payload") continue;
 
             try {
-              const json = JSON.parse(data);
+              const json = event.payload as { type?: string; results?: unknown; query?: unknown };
               if (json.type === "search_results") {
                 const results = Array.isArray(json.results) ? json.results : [];
                 resultCount = results.length;
@@ -395,10 +383,9 @@ export default function WorkstationClient({ config }: { config: AppConfig }) {
                 continue;
               }
 
-              const reasoningDelta = json.choices?.[0]?.delta?.reasoning_content ?? "";
-              if (typeof reasoningDelta === "string" && reasoningDelta) {
-                streamThink += reasoningDelta;
-                setThinkText(streamThink);
+              const delta = chatStream.push(json);
+              if (delta.reasoning) {
+                setThinkText(chatStream.thinking);
                 if (firstToken) {
                   firstTokenTs = Date.now();
                   firstToken = false;
@@ -413,8 +400,7 @@ export default function WorkstationClient({ config }: { config: AppConfig }) {
                 }
               }
 
-              const delta = json.choices?.[0]?.delta?.content ?? "";
-              if (delta) {
+              if (delta.content) {
                 if (firstToken) {
                   firstTokenTs = Date.now();
                   firstToken = false;
@@ -427,11 +413,9 @@ export default function WorkstationClient({ config }: { config: AppConfig }) {
                     })
                   );
                 }
-                rawContent += delta;
-                const parsed = parseThinkContent(rawContent);
-                fullContent = parsed.main.trimStart() || parsed.main;
-                if (parsed.think) {
-                  setThinkText(parsed.think);
+                fullContent = chatStream.content;
+                if (chatStream.thinking) {
+                  setThinkText(chatStream.thinking);
                 }
                 setMessages((prev) =>
                   prev.map((m) =>
@@ -477,13 +461,9 @@ export default function WorkstationClient({ config }: { config: AppConfig }) {
           );
         }
       } finally {
-        // If no regular content was generated but reasoning was, use reasoning as fallback
-        if (!fullContent && streamThink) {
-          fullContent = streamThink;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantId ? { ...m, content: fullContent } : m
-            )
+        if (!failed) {
+          fullContent = chatStream.visibleContent(
+            aborted ? STOPPED_ASSISTANT_RESPONSE : undefined
           );
         }
         const finalContent = fullContent.trim();
