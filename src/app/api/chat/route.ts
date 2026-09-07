@@ -10,6 +10,11 @@ import {
 } from "@/lib/metrics";
 import { NextRequest } from "next/server";
 import type { SearchResult } from "@/types";
+import {
+  extractChatMessage,
+  extractChatStreamDelta,
+  parseChatSseLine,
+} from "@/lib/chatStream";
  
 
 export const runtime = "nodejs";
@@ -122,10 +127,10 @@ export async function POST(req: NextRequest) {
     const contentType = response.headers.get("content-type") || "";
     if (!stream && contentType.includes("application/json")) {
       const payload = await response.json();
-      const generated =
-        typeof payload?.choices?.[0]?.message?.content === "string"
-          ? payload.choices[0].message.content
-          : "";
+      const generatedFields = extractChatMessage(payload);
+      const generated = [generatedFields.reasoning, generatedFields.content]
+        .filter(Boolean)
+        .join("\n");
       const totalDurationSeconds = (performance.now() - requestStart) / 1000;
       finishChatRequest({
         model,
@@ -156,6 +161,7 @@ export async function POST(req: NextRequest) {
 
     let sseBuffer = "";
     let generatedText = "";
+    let generatedReasoning = "";
     let finalized = false;
 
     const finalize = (status: "completed" | "failed") => {
@@ -164,7 +170,9 @@ export async function POST(req: NextRequest) {
       }
       finalized = true;
       const durationSeconds = (performance.now() - requestStart) / 1000;
-      const approxTokens = estimateTokenCount(generatedText);
+      const approxTokens = estimateTokenCount(
+        [generatedReasoning, generatedText].filter(Boolean).join("\n")
+      );
       finishChatRequest({
         model,
         durationSeconds,
@@ -205,22 +213,13 @@ export async function POST(req: NextRequest) {
               sseBuffer = lines.pop() ?? "";
 
               for (const line of lines) {
-                if (!line.startsWith("data: ")) {
+                const event = parseChatSseLine(line);
+                if (event.kind !== "payload") {
                   continue;
                 }
-                const data = line.slice(6).trim();
-                if (!data || data === "[DONE]") {
-                  continue;
-                }
-                try {
-                  const parsed = JSON.parse(data);
-                  const delta = parsed.choices?.[0]?.delta?.content;
-                  if (typeof delta === "string") {
-                    generatedText += delta;
-                  }
-                } catch {
-                  // 非 JSON SSE 片段直接透传，不影响流式返回
-                }
+                const delta = extractChatStreamDelta(event.payload);
+                generatedText += delta.content;
+                generatedReasoning += delta.reasoning;
               }
               controller.enqueue(value);
             }
