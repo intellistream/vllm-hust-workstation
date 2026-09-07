@@ -61,10 +61,15 @@ it("runs only the fixed canary lifecycle and rejects a leaked grant", async () =
   await new Promise<void>((resolve, reject) => server!.listen(socketPath, resolve).once("error", reject));
   vi.stubEnv("WORKSTATION_HOST_BROKER_SOCKET", socketPath);
   await expect(describeCanaryTarget()).resolves.toMatchObject({ state: "stopped", effective: false });
-  await expect(runCanaryLifecycle("start")).resolves.toMatchObject({ state: "running", replayRejected: true, effective: false });
+  for (const action of ["start", "restart", "rollback", "stop"] as const) {
+    await expect(runCanaryLifecycle(action)).resolves.toMatchObject({ replayRejected: true, effective: false });
+  }
   expect(received).toEqual([
     { schema: "vllm-hust.host-broker/v1", action: "canary_status", instance_id: "inert-canary" },
     { schema: "vllm-hust.host-broker/v1", action: "canary_lifecycle", instance_id: "inert-canary", lifecycle_action: "start" },
+    { schema: "vllm-hust.host-broker/v1", action: "canary_lifecycle", instance_id: "inert-canary", lifecycle_action: "restart" },
+    { schema: "vllm-hust.host-broker/v1", action: "canary_lifecycle", instance_id: "inert-canary", lifecycle_action: "rollback" },
+    { schema: "vllm-hust.host-broker/v1", action: "canary_lifecycle", instance_id: "inert-canary", lifecycle_action: "stop" },
   ]);
   expect(JSON.stringify(received)).not.toMatch(/grant|argv|image|owner|pid|uid/);
 });

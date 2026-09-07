@@ -25,7 +25,7 @@ beforeEach(() => {
   fail = false; expired.mockReset(); changed.mockReset();
   payload = { administrator: false, target: { id: "current", label: "工作站实例", ownership: "shared", identityVerified: true, models: ["model"], observedMods: null, imageId: "sha256:" + "a".repeat(64) }, preparationAvailable: true, applicationAvailable: false,
     lifecycle: { status: "unavailable", brokerAvailable: false, instanceRegistered: false, identityLive: true, rollbackReady: false, oneUseAuthorization: false, reason: "当前实例尚未纳入运行控制。" },
-    mods: [{ id: "diffspec", artifactQualification: { status: "passed", label: "功能兼容性已通过", scope: "fixture" }, currentRuntimeCompatibility: "unknown" }], message: "运行环境可准备", tasks: [] };
+    mods: [{ id: "diffspec", artifactQualification: { status: "passed", label: "功能兼容性已通过", scope: "fixture" }, targetArtifactCompatibility: { status: "unknown", label: "待核验", reason: "fixture", evaluatedAgainst: { coreSha: "", pluginSha: "", coreVersion: "", pluginVersion: "", models: [] } }, currentRuntimeCompatibility: "unknown" }], message: "运行环境可准备", tasks: [] };
   fetchMock.mockReset().mockImplementation(async (url: string, options: RequestInit) => {
     if (fail) return { ok: false, status: 503, json: async () => ({ error: "实例暂不可用" }) };
     if (url === "/api/mod-canary") return { ok: true, status: 200, json: async () => ({ available: false, registered: false, state: "unavailable", healthy: false, effective: false }) };
@@ -52,40 +52,21 @@ it("shows public target identity without mutation controls or a false effective 
   expect(host.textContent).not.toContain("生命周期自检");
 });
 
-it("requires a second password and sends no launch fields for a ready lifecycle action", async () => {
-  payload = { ...payload, applicationAvailable: true,
-    lifecycle: { status: "ready", brokerAvailable: true, instanceRegistered: true, identityLive: true, rollbackReady: true, oneUseAuthorization: true, reason: "运行控制已就绪。" },
-    mods: [{ id: "diffspec", artifactQualification: { status: "passed", label: "功能兼容性已通过", scope: "fixture" }, currentRuntimeCompatibility: "compatible" }] };
-  await render("fixture-token");
-  expect(host.textContent).toContain("生命周期自检");
-  expect(host.textContent).toContain("不安装或启用 Mod");
-  await act(async () => button("启动").click());
-  expect(host.querySelector('[aria-label="服务生命周期确认"]')).not.toBeNull();
-  const input = host.querySelector('input[type="password"]') as HTMLInputElement;
-  await act(async () => {
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "fixture-token");
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  await act(async () => button("确认运行操作").click());
-  const [, request] = fetchMock.mock.calls.find(([, options]) => options.method === "POST" && JSON.parse(String(options.body)).action === "start")!;
-  expect(JSON.parse(request.body)).toEqual({ action: "start", targetId: "current", modId: "diffspec", confirmation: "fixture-token" });
-  expect(JSON.stringify(request.body)).not.toMatch(/argv|imageId|owner_id|pid|uid/);
-});
-
 it("requires confirmation and sends only target/Mod/action IDs with administrator authentication", async () => {
   await render("fixture-token");
   await act(async () => button("准备运行镜像").click());
   expect(host.querySelector('[role="dialog"]')).not.toBeNull();
   expect(fetchMock.mock.calls.filter(([, options]) => options.method)).toHaveLength(0);
+  expect(button("确认准备").disabled).toBe(true);
+  await act(async () => (host.querySelector('input[type="checkbox"]') as HTMLInputElement).click());
   await act(async () => button("确认准备").click());
   const [, request] = fetchMock.mock.calls.find(([, options]) => options.method === "POST")!;
-  expect(JSON.parse(request.body)).toEqual({ action: "prepare", targetId: "current", modId: "diffspec" });
+  expect(JSON.parse(request.body)).toEqual({ action: "prepare", targetId: "current", modId: "diffspec", riskAcknowledged: true });
   expect(request.headers["X-Workstation-Admin-Token"]).toBe("fixture-token");
   expect(host.textContent).toContain("已准备 · 未应用");
   expect(host.textContent).toContain("生效 Mod：待核验");
-  expect(button("启动").disabled).toBe(true);
-  expect(button("停止").disabled).toBe(true);
-  expect(button("重启").disabled).toBe(true);
+  expect(host.textContent).toContain("接管协议未完整验收前不显示应用、停用或回滚按钮");
+  expect([...host.querySelectorAll("button")].some(item => ["启动", "停止", "重启"].includes(item.textContent || ""))).toBe(false);
   expect(changed).toHaveBeenCalledTimes(1);
 });
 

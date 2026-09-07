@@ -1,19 +1,20 @@
 {
   "protocol": "vllm-hust.instance-control/v1",
-  "sourceSha": "e8b0cf737f3975b0a198353f4fe988d8608ee576",
+  "sourceSha": "5958941e68699ad11639a39ed9acf92a6b986982",
   "entrypoint": "scripts/instance_control_entry.py",
   "files": {
-    "config/instance-control-contract.json": "29b1d1399daf5c76ddc7c17e2a7d24e789e8113c11b881136e3b5f5ca9bf0307",
-    "scripts/instance_control_entry.py": "eceb6c6d9d2eeedaa706b065f19d98be56b27492a8c8ad0cbd1ff05f024d8869",
+    "config/instance-control-contract.json": "6709ba10d31153f549b2d3ea4094f48c62e34896c67541eee9af818238f474be",
+    "scripts/instance_control_entry.py": "f26278de4826d998a3dfaeb898040dc6110d9a286d0d8986a53547d6588ca7b4",
     "scripts/instance_control/__init__.py": "2827f71e084c77bd5adeb2220b0fa7c79e1da32d51658398741aeb69c81db98e",
     "scripts/instance_control/backend.py": "7dddfea30f5c75d5d71d0109094c99a06d05a8c2ec20e602cf10a251de3cd0c6",
-    "scripts/instance_control/canary_coordinator.py": "e9be6033a122c010e3de9c508e177c10b08762b63e65da016d4abfeb0e6e8b4c",
-    "scripts/instance_control/controller.py": "7e716f2836b030908d9c13b12a7cd3cd9c920c914cd78be5b6caf771fb259941",
+    "scripts/instance_control/canary_coordinator.py": "6f55ba32ed2aa39d4256924e4a23a51de4e5f177499c06c1869f5c543c61d549",
+    "scripts/instance_control/controller.py": "8806a670a06933b21b9049781e4e4a3dc3d1e9d7f740b7e8fe9b0b604184d7fc",
     "scripts/instance_control/foreground.py": "86d7a6304a4a326d5fef77ee1c6059fd1b90087e8bf99d55da73f9bfcef27a63",
     "scripts/instance_control/host_authority.py": "8d9c545118072635e5c9403f76d161419bf17caf0d89ea18d0d931a7a55aee8e",
     "scripts/instance_control/host_broker.py": "c415a034214bca01c48d06653ff5ac0b4b0baf711c1570f048cd61f60bd28f0d",
     "scripts/instance_control/host_client.py": "294eaad63e556aab46e33edf13a1c6ed2f16714bcb6255dcc78197f506611acb",
     "scripts/instance_control/schema.py": "a8f21e7df69514dc9e66ffc9d91b23ce6d3238c4911465f12b7b12a0cf80191b",
-    "scripts/instance_control/store.py": "a86d72e48f38eb19e5e9a90fcbed3fd5b61a3363578c9e91628bcbbe940a25d4"
+    "scripts/instance_control/store.py": "2b597353aee9eb8f230a419864e17250237806f711e0749b87df81a31b036c09",
+    "scripts/instance_control/transport.py": "bcbeab1bfa7873ddb5664bb30189bc8fecbd9c70e07b9ea5841804dc2a65b9dc"
   }
 }

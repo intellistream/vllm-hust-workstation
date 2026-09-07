@@ -22,6 +22,14 @@ export interface ModRuntimePayload {
     pluginSha?: string;
     checkedAt?: string;
     models: string[];
+    deploymentProfile?: {
+      receiptId: string;
+      receiptSha256: string;
+      tensorParallelSize: number;
+      pipelineParallelSize: number;
+      executionMode: "graph";
+      physicalDeviceCount: number;
+    };
     observedMods: null | Array<{ id: string; runtimeEffective: boolean; evidenceId: string; observedAt: string }>;
   };
   preparationAvailable: boolean;
@@ -37,7 +45,8 @@ export interface ModRuntimePayload {
   };
   mods: Array<{
     id: string;
-    artifactQualification: { status: "passed" | "not-applicable" | "external"; label: string; scope: string; evidence?: string };
+    artifactQualification: { status: "passed" | "unverified" | "external"; label: string; scope: string; evidence?: string };
+    targetArtifactCompatibility: import("./modCompatibility").TargetArtifactCompatibility;
     currentRuntimeCompatibility: "compatible" | "incompatible" | "unknown";
   }>;
   message: string;

@@ -24,7 +24,7 @@ it("accepts only fixed canary IDs and a second credential", async () => {
   for (const body of [
     { action: "start", targetId: "shared-qwen", modId: "lifecycle-self-test", confirmation: "test-admin" },
     { action: "start", targetId: "inert-canary", modId: "bidkv", confirmation: "test-admin" },
-    { action: "restart", targetId: "inert-canary", modId: "lifecycle-self-test", confirmation: "test-admin" },
+    { action: "apply", targetId: "inert-canary", modId: "lifecycle-self-test", confirmation: "test-admin" },
     { action: "start", targetId: "inert-canary", modId: "lifecycle-self-test", confirmation: "wrong" },
     { action: "start", targetId: "inert-canary", modId: "lifecycle-self-test", confirmation: "test-admin", grant: "attacker" },
   ]) expect((await POST(request(body))).status).toBe(body.confirmation === "wrong" ? 401 : 400);
@@ -32,8 +32,10 @@ it("accepts only fixed canary IDs and a second credential", async () => {
 });
 
 it("forwards only a fixed action after both administrator checks", async () => {
-  const response = await POST(request({ action: "start", targetId: "inert-canary", modId: "lifecycle-self-test", confirmation: "test-admin" }));
-  expect(response.status).toBe(200);
-  expect(runCanaryLifecycle).toHaveBeenCalledWith("start");
-  expect(await response.json()).toMatchObject({ state: "running", replayRejected: true, effective: false });
+  for (const action of ["start", "stop", "restart", "rollback"] as const) {
+    const response = await POST(request({ action, targetId: "inert-canary", modId: "lifecycle-self-test", confirmation: "test-admin" }));
+    expect(response.status).toBe(200);
+    expect(runCanaryLifecycle).toHaveBeenLastCalledWith(action);
+    expect(await response.json()).toMatchObject({ state: "running", replayRejected: true, effective: false });
+  }
 });

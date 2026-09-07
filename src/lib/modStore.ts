@@ -59,13 +59,16 @@ export async function getModCatalog(administrator: boolean): Promise<ModCatalogP
   return { catalog, administrator, storageReady: Boolean(root), tasks: root && administrator ? (await tasks(root)).slice(0, 20) : [], runtime: { status: "unverified", message: "尚未绑定可管理的推理实例。制品准备和启用意图仅保存在 Mod 库；不代表当前共享服务已加载。正式应用须将 Manager 与插件装入 vLLM 的同一运行环境，并经过目标版本、资源与重启审批。" } };
 }
 
-export async function startModAction(id: string, action: ModAction, configuration?: unknown): Promise<ModTask> {
+export async function startModAction(id: string, action: ModAction, configuration?: unknown, riskAcknowledged = false): Promise<ModTask> {
   const mod = MOD_CATALOG.find(m => m.id === id);
   if (!mod) throw new ModError("未知 Mod。", 404);
   if (!["install", "configure", "enable", "disable", "uninstall", "run"].includes(action)) throw new ModError("不支持的操作。", 400);
   if (action === "run") throw new ModError("未绑定经兼容性验收的专属推理实例；本操作不会重启共享服务。需要单独的部署与重启审批。");
   if (!mod.sha) throw new ModError("外部服务不由工作站安装、启停或卸载。");
   if (action === "configure" && (!configuration || typeof configuration !== "object" || Array.isArray(configuration) || JSON.stringify(configuration).length > 16_384)) throw new ModError("配置必须为不超过 16 KiB 的 JSON 对象。", 400);
+  if (["install", "configure", "enable"].includes(action) && mod.effectiveness.status === "not-beneficial-in-tested-cell" && riskAcknowledged !== true) {
+    throw new ModError("该资格制品在已测单元中性能退化；需要显式确认风险。", 409);
+  }
   if (action === "enable") {
     const qualification = assessModCompatibility(id, await getRuntimeProvenance());
     if (qualification.status !== "compatible") throw new ModError(`当前实例${qualification.label}：${qualification.reason} 启用意图未保存。`);
