@@ -69,6 +69,10 @@ it("projects target artifact eligibility from a matching deployment receipt with
   const data = await getModRuntime(false);
   expect(data.target?.deploymentProfile).toMatchObject({ tensorParallelSize: 4, pipelineParallelSize: 1, executionMode: "graph" });
   expect(data.mods.find(item => item.id === "bidkv")?.targetArtifactCompatibility.status).toBe("compatible");
+  expect(data.mods.find(item => item.id === "pipeline-microbatch")?.targetArtifactCompatibility).toMatchObject({
+    status: "not-applicable",
+    reason: expect.stringMatching(/PP2 × TP2.*当前部署拓扑/),
+  });
   expect(data.mods.find(item => item.id === "bidkv")?.currentRuntimeCompatibility).toBe("unknown");
 });
 

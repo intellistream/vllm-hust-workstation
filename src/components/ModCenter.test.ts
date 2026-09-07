@@ -65,6 +65,19 @@ it("does not turn historical-range presentation into activation or public mutati
   expect(fetchMock.mock.calls.every(([, options]) => options.method === undefined)).toBe(true);
 });
 
+it("never renders installation credential diagnostics in a read-only payload, including stale cached data", async () => {
+  fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({
+    catalog: MOD_CATALOG.map(mod => ({ ...mod,
+      currentRuntimeState: { installed: false, configured: false, enabled: false, runtimeEffective: null },
+      currentRuntimeCompatibility, ...(mod.id === "diffspec" ? { stateError: "安装凭据无效，需管理员检查。" } : {}),
+    })),
+    administrator: false, storageReady: true, tasks: [], runtime: { status: "unverified" },
+  }) });
+  await act(async () => root.render(createElement(ModCenter)));
+  expect(host.textContent).not.toContain("安装凭据无效");
+  expect(host.querySelector('[role="alert"]')).toBeNull();
+});
+
 it("requires an explicit performance-risk opt-in before an administrator can prepare a degraded candidate", async () => {
   fetchMock.mockImplementation(async (_url: string, options: RequestInit = {}) => ({ ok: true, status: 200, json: async () => ({
     catalog: MOD_CATALOG.map(mod => ({ ...mod, currentRuntimeState: { installed: false, configured: false, enabled: false, runtimeEffective: null }, currentRuntimeCompatibility })),

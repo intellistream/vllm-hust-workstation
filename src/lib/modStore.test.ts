@@ -28,7 +28,9 @@ it("does not expose receipt internals or task logs to anonymous users", async ()
 });
 it("fails closed on corrupt installation metadata", async () => {
   await mkdir(path.join(root, "bidkv")); await writeFile(path.join(root, "bidkv/receipt.json"), "{}");
-  const mod = (await getModCatalog(true)).catalog[0]; expect(mod.currentRuntimeState.installed).toBe(false); expect(mod.stateError).toBeTruthy();
+  const publicMod = (await getModCatalog(false)).catalog[0];
+  expect(publicMod.currentRuntimeState.installed).toBe(false); expect(publicMod.stateError).toBeUndefined();
+  const adminMod = (await getModCatalog(true)).catalog[0]; expect(adminMod.currentRuntimeState.installed).toBe(false); expect(adminMod.stateError).toBeTruthy();
 });
 it("rejects all mutations before parsing without administrator credentials", async () => {
   for (const action of ["install", "configure", "enable", "disable", "uninstall", "run"]) {

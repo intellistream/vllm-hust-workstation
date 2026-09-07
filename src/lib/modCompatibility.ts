@@ -80,6 +80,16 @@ export function assessTargetArtifactCompatibility(
   if (modId === "latchmoe" && normalizedModel(target.models, "Qwen3.8-27B")) {
     return { status: "not-applicable", label: "当前模型不适用", reason: "Qwen3.8-27B 是 dense 模型，没有 LatchMoE 所需的 routed experts。", evaluatedAgainst };
   }
+  if (modId === "pipeline-microbatch") {
+    if (host.status !== "compatible") return { status: "unknown", label: "待核验", reason: host.reason, evaluatedAgainst };
+    if (!normalizedModel(target.models, "Qwen3.8-27B")) {
+      return { status: "not-applicable", label: "当前模型不适用", reason: "该已验收 Pipeline Microbatch 部署单元绑定 Qwen3.8-27B。", evaluatedAgainst };
+    }
+    if (target.executionMode !== "graph" || target.tensorParallelSize !== 2 || target.pipelineParallelSize !== 2) {
+      return { status: "not-applicable", label: "当前模型不适用", reason: "Pipeline Microbatch 的资格单元要求 Qwen3.8-27B、PP2 × TP2 和 graph；当前部署拓扑不能直接套用。", evaluatedAgainst };
+    }
+    return { status: "compatible", label: "可部署", reason: "Qwen3.8-27B PP2 × TP2 graph 功能部署单元已通过；已测性能退化只影响推荐等级。", evaluatedAgainst };
+  }
   if (host.status !== "compatible") return { status: "unknown", label: "待核验", reason: host.reason, evaluatedAgainst };
   if (target.executionMode !== "graph" || target.tensorParallelSize !== 4 || target.pipelineParallelSize !== 1) {
     return { status: "incompatible", label: "不兼容", reason: "已验收部署单元要求 TP4、PP1 和 graph；不会通过降低 TP 或切换 eager 绕过门禁。", evaluatedAgainst };
@@ -171,5 +181,12 @@ export function assessModCompatibility(modId: string, runtime: RuntimeProvenance
     return result("unverified", "Qwen3.8-27B 是 dense 模型，LatchMoE 不适用；Qwen3-30B-A3B 候选已通过 TP4 graph 功能门禁但性能退化。当前容器未证明候选 63781f3d、模型身份和 runtime-effective 见证，不能继承该结论。", runtime);
   }
 
-  return result("unverified", "该扩展由外部运维方管理，Workstation 没有其生命周期兼容性证据。", runtime);
+  if (modId === "pipeline-microbatch") {
+    if (!exactTarget) {
+      return result("unverified", "当前 Core/Ascend 制品不在 Pipeline Microbatch 已完成功能验收的精确 lane；没有反证证明不兼容。", runtime);
+    }
+    return result("compatible", "该宿主制品属于 Pipeline Microbatch 已通过功能验收的精确 lane；候选部署仍须匹配 Qwen3.8-27B、PP2 × TP2 与 graph。", runtime);
+  }
+
+  return result("unverified", "该扩展尚无当前宿主制品的精确功能验收映射，不能推断生命周期兼容性。", runtime);
 }
