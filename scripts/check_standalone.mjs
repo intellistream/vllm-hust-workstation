@@ -3,6 +3,32 @@ import { createServer } from "node:net";
 import { resolve } from "node:path";
 import { lstat, rm } from "node:fs/promises";
 
+function assertDecodableIco(bytes) {
+  if (bytes.length < 22) throw new Error("Favicon ICO is empty or truncated");
+  if (bytes.readUInt16LE(0) !== 0 || bytes.readUInt16LE(2) !== 1) {
+    throw new Error("Favicon does not have a valid ICO header");
+  }
+  const imageCount = bytes.readUInt16LE(4);
+  if (imageCount < 1 || bytes.length < 6 + imageCount * 16) {
+    throw new Error("Favicon ICO has no complete image directory");
+  }
+  for (let index = 0; index < imageCount; index++) {
+    const entry = 6 + index * 16;
+    const imageSize = bytes.readUInt32LE(entry + 8);
+    const imageOffset = bytes.readUInt32LE(entry + 12);
+    if (imageSize < 4 || imageOffset < 6 + imageCount * 16 || imageOffset + imageSize > bytes.length) {
+      throw new Error("Favicon ICO image entry points outside the response body");
+    }
+    const isPng = bytes.subarray(imageOffset, imageOffset + 8).equals(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    );
+    const dibHeaderSize = bytes.readUInt32LE(imageOffset);
+    if (!isPng && dibHeaderSize < 40) {
+      throw new Error("Favicon ICO image payload is neither PNG nor a supported DIB");
+    }
+  }
+}
+
 // Next copies dotenv files separately from tracing. Credentials belong to the
 // trusted launcher, not the generated deployment bundle; remove only these copies.
 const candidate = resolve(".next/standalone");
@@ -51,7 +77,13 @@ try {
   const instance = await fetch(`http://127.0.0.1:${port}/api/mod-runtime`);
   const instanceData = await instance.json();
   if (!instance.ok || instanceData.administrator || instanceData.applicationAvailable !== false || instanceData.tasks.length || !instanceData.lifecycle || !Array.isArray(instanceData.mods)) throw new Error("Standalone runtime catalog failed");
-  console.log("Standalone startup and read-only catalog probe passed");
+  const favicon = await fetch(`http://127.0.0.1:${port}/favicon.ico`);
+  const faviconType = (favicon.headers.get("content-type") || "").split(";", 1)[0].toLowerCase();
+  if (!favicon.ok || !["image/x-icon", "image/vnd.microsoft.icon"].includes(faviconType)) {
+    throw new Error(`Standalone favicon route failed: ${favicon.status} ${faviconType || "missing content-type"}`);
+  }
+  assertDecodableIco(Buffer.from(await favicon.arrayBuffer()));
+  console.log("Standalone startup, read-only catalog, and favicon probes passed");
 } finally {
   if (child.exitCode === null && !spawnError) {
     await new Promise(resolve => {
