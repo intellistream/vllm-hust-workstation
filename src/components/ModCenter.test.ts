@@ -33,6 +33,7 @@ it("renders the reviewed 19-entry catalog with independent qualification axes", 
   expect(cards[0].textContent).toContain("效果资格");
   expect(cards[0].textContent).toContain("推荐等级");
   expect(cards[0].textContent).toContain("当前实例状态");
+  expect(cards.every(card => card.querySelector("dl")?.className.includes("[overflow-wrap:anywhere]"))).toBe(true);
   expect(cards[0].textContent).toContain("已测配置不推荐");
   expect(cards.find(card => card.textContent?.includes("Pipeline Microbatch"))?.textContent).toContain("组织目录与安装入口已发布");
   expect(cards.find(card => card.textContent?.includes("Pipeline Microbatch"))?.textContent).toContain("当前部署不适用");
