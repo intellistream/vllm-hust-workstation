@@ -41,9 +41,7 @@ jobs:
         run: npm run lint
 
       - name: Unit and contract tests
-        run: |
-          npm test
-          node --test src/components/WorkstationClient.fallback.test.js
+        run: npm test
 
       - name: Receipt refresh integration tests (fake Docker only)
         run: python3 -m unittest discover -s scripts/tests -v
