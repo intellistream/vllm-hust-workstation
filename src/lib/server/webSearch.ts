@@ -48,7 +48,12 @@ const SEARCH_CONTEXT_TOTAL_CHARS = Number(process.env.SEARCH_CONTEXT_TOTAL_CHARS
 const SEARCH_QUERY_MAX_CHARS = Number(process.env.SEARCH_QUERY_MAX_CHARS || "200");
 const execFileAsync = promisify(execFile);
 const WEATHER_QUERY_RE = /(天气|气温|温度|体感|湿度|风力|风速|降雨|下雨|weather|temperature)/i;
-const SEARCH_FILLER_RE = /请你|请帮我|请帮忙|帮我|帮忙|概括|总结|梳理|说明|介绍|分析|比较|对比|给出|列出|一句话|结论|最近|公开资料|要点|并用|回答|一下|一下子|如何|为什么|是什么|有哪些|支持情况|支持|公开|资料/gi;
+const INSTRUCTION_PREFIX_HINT_RE = /请|麻烦|回答|说明|解释|介绍|总结|概括|分析|比较|对比|列出|给出|告诉|查询|搜索|一句|中文|英文|简要|直接|只用|仅用/i;
+const POLITE_PREFIX_RE = /^(?:请问|请(?:你)?(?:帮我|帮忙)?|麻烦(?:你)?|劳驾|能否|可以(?:请)?)\s*/i;
+const OUTPUT_FORMAT_PREFIX_RE = /^(?:(?:只|仅)\s*)?(?:(?:用|使用)\s*)?(?:(?:一|两|三|\d+)\s*)?句(?:中文|英文)?(?:话)?\s*(?:简要|直接)?\s*(?:来)?\s*(?:回答|说明|解释)\s*/i;
+const REQUEST_VERB_PREFIX_RE = /^(?:回答|说明|解释|介绍|总结|概括|分析|比较|对比|列出|给出|告诉我|查询|搜索|查找)(?:一下)?\s*/i;
+const TRAILING_FORMAT_RE = /\s*(?:请)?\s*(?:(?:只|仅)\s*)?(?:(?:用|使用)\s*)?(?:(?:一|两|三|\d+)\s*)?句(?:中文|英文)?(?:话)?\s*(?:简要|直接)?\s*(?:回答|说明)?\s*$/i;
+const QUESTION_STOP_PHRASES = ["为什么", "是什么", "是不是", "请问", "怎么", "如何", "哪些", "哪个", "是否", "为何"];
 
 function stripTags(input: string): string {
   return input
@@ -367,19 +372,90 @@ export function getWorkstationSearchMode(): WebSearchContext["mode"] {
   return SEARCH_ENABLED ? "workstation-context" : "disabled";
 }
 
-function normalizeSearchQuery(query: string): string {
+function looksLikeInstructionPrefix(prefix: string): boolean {
+  const compact = prefix.replace(/\s+/g, "").trim();
+  return compact.length > 0 && compact.length <= 40 && INSTRUCTION_PREFIX_HINT_RE.test(compact);
+}
+
+export function normalizeSearchQuery(query: string): string {
   const trimmed = query.trim().slice(0, SEARCH_QUERY_MAX_CHARS);
   if (!trimmed) {
     return "";
   }
 
-  const normalized = trimmed
+  let subject = trimmed;
+  const colonIndex = subject.search(/[:：]/);
+  if (colonIndex > 0 && looksLikeInstructionPrefix(subject.slice(0, colonIndex))) {
+    const suffix = subject.slice(colonIndex + 1).trim();
+    if (suffix.length >= 2) {
+      subject = suffix;
+    }
+  }
+
+  for (let pass = 0; pass < 3; pass += 1) {
+    const previous = subject;
+    subject = subject
+      .replace(POLITE_PREFIX_RE, "")
+      .replace(OUTPUT_FORMAT_PREFIX_RE, "")
+      .replace(REQUEST_VERB_PREFIX_RE, "")
+      .trim();
+    if (subject === previous) break;
+  }
+
+  const normalized = subject
+    .replace(TRAILING_FORMAT_RE, "")
     .replace(/[，。！？?、,:：；;（）()【】\[\]"'“”‘’]/g, " ")
-    .replace(SEARCH_FILLER_RE, " ")
     .replace(/\s+/g, " ")
     .trim();
 
-  return normalized.length >= 4 ? normalized : trimmed;
+  return normalized || trimmed;
+}
+
+function meaningfulSearchTerms(query: string): string[] {
+  const normalized = query.toLocaleLowerCase().replace(/[\p{P}\p{S}]+/gu, " ");
+  const terms = new Set<string>();
+
+  for (const token of normalized.match(/[a-z0-9][a-z0-9._+-]{1,}/g) || []) {
+    terms.add(token);
+  }
+
+  let hanText = normalized;
+  for (const phrase of QUESTION_STOP_PHRASES) {
+    hanText = hanText.replaceAll(phrase, " ");
+  }
+  hanText = hanText.replace(/[的吗呢呀啊了是有在和与及]/g, " ");
+
+  for (const segment of hanText.match(/\p{Script=Han}{2,}/gu) || []) {
+    if (segment.length <= 4) {
+      terms.add(segment);
+      continue;
+    }
+    for (let index = 0; index < segment.length - 1; index += 1) {
+      terms.add(segment.slice(index, index + 2));
+    }
+  }
+
+  return [...terms];
+}
+
+export function filterRelevantSearchResults(query: string, results: SearchResult[]): SearchResult[] {
+  const terms = meaningfulSearchTerms(query);
+  if (!terms.length) {
+    return results;
+  }
+  const requiredMatches = terms.length > 1 ? 2 : 1;
+
+  return results.filter((result) => {
+    const haystack = `${result.title} ${result.snippet}`.toLocaleLowerCase();
+    let matches = 0;
+    for (const term of terms) {
+      if (haystack.includes(term)) {
+        matches += 1;
+        if (matches >= requiredMatches) return true;
+      }
+    }
+    return false;
+  });
 }
 
 export async function searchWeb(query: string, maxResults = Math.min(SEARCH_MAX_RESULTS, 10)): Promise<SearchResult[]> {
@@ -419,9 +495,9 @@ export function buildSearchContext(results: SearchResult[]): string {
   }
 
   const lines = [
-    "【联网搜索结果】以下是刚刚实时搜索到的内容，请直接利用这些内容回答用户问题。",
-    "你已经拿到了实时搜索/工具结果，必须优先基于这些结果作答。",
-    "不要再说你无法联网、无法实时获取信息、没有相关数据。",
+    "【联网搜索参考】仅使用与问题直接相关且确实支持回答的内容。",
+    "若结果不足，请基于自身知识作答；不得虚构引用，也不要因搜索未覆盖而称问题无法回答。",
+    "使用搜索内容时标注 [编号]；未使用则不要添加引用。",
     "",
   ];
   const limitedResults = results.slice(0, Math.max(1, SEARCH_CONTEXT_MAX_RESULTS));
@@ -432,7 +508,6 @@ export function buildSearchContext(results: SearchResult[]): string {
     }
   }
   lines.push("");
-  lines.push("请根据以上结果直接作答，并在引用时标注 [编号]。\n");
   return lines.join("\n").slice(0, SEARCH_CONTEXT_TOTAL_CHARS);
 }
 
@@ -450,7 +525,8 @@ export async function getWebSearchContext(query: string, forceEnable = true): Pr
   }
 
   try {
-    const results = await searchWeb(trimmedQuery, Math.min(SEARCH_MAX_RESULTS, 10));
+    const rawResults = await searchWeb(trimmedQuery, Math.min(SEARCH_MAX_RESULTS, 10));
+    const results = filterRelevantSearchResults(trimmedQuery, rawResults);
     return {
       enabled: SEARCH_ENABLED,
       attempted: true,
